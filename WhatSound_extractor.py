@@ -33,7 +33,7 @@ import numpy as np
 # 	show()
 # 	return
 	
-def meanMfcc(filename):
+def meanMfcc(filename, outfile="key"):
 	# Introducing the Pool: a good-for-all container
 	#
 	# A Pool can contain any type of values (easy in Python, not as much in C++ :-) )
@@ -60,13 +60,13 @@ def meanMfcc(filename):
 		pool.add('lowlevel.mfcc', mfcc_coeffs)
 		pool.add('lowlevel.mfcc_bands', mfcc_bands)
 		
-	imshow(pool['lowlevel.mfcc'].T[1:,:], aspect = 'auto')
+	# imshow(pool['lowlevel.mfcc'].T[1:,:], aspect = 'auto')
 	# figure()
 	
 	# Let's plot mfcc bands on a log-scale so that the energy values will be better
 	# differentiated by color
-	from matplotlib.colors import LogNorm
-	imshow(pool['lowlevel.mfcc_bands'].T, aspect = 'auto', interpolation = 'nearest', norm = LogNorm())
+	# from matplotlib.colors import LogNorm
+	# imshow(pool['lowlevel.mfcc_bands'].T, aspect = 'auto', interpolation = 'nearest', norm = LogNorm())
 	# show()
 	
 	# <demo> --- stop ---
@@ -82,7 +82,7 @@ def meanMfcc(filename):
 	# To this end, we have the PoolAggregator algorithm, that can do all sorts of
 	# aggregation: mean, variance, min, max, etc...
 	aggrPool = PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
-
+	
 	#Write the mean mfcc to another pool
 	meanMfccPool = essentia.Pool()
 	meanMfccPool.add('mean_mfcc', aggrPool['lowlevel.mfcc.mean'])
@@ -98,6 +98,42 @@ def meanMfcc(filename):
 	print "Values for " + str(filename) + " : " + str(values)
 	return values
 	
+def extractKey(filename, outfile="key"):
+	# initialize algorithms we will use
+	loader = MonoLoader(filename=filename)
+	framecutter = FrameCutter()
+	windowing = Windowing(type="blackmanharris62")
+	spectrum = Spectrum()
+	spectralpeaks = SpectralPeaks(orderBy="magnitude",
+	                              magnitudeThreshold=1e-05,
+	                              minFrequency=40,
+	                              maxFrequency=5000, 
+	                              maxPeaks=10000)
+	hpcp = HPCP()
+	key = Key()
+	
+	# use pool to store data
+	pool = essentia.Pool() 
+	
+	# connect algorithms together
+	loader.audio >> framecutter.signal
+	framecutter.frame >> windowing.frame >> spectrum.frame
+	spectrum.spectrum >> spectralpeaks.spectrum
+	spectralpeaks.magnitudes >> hpcp.magnitudes
+	spectralpeaks.frequencies >> hpcp.frequencies
+	hpcp.hpcp >> key.pcp
+	key.key >> (pool, 'tonal.key_key')
+	key.scale >> (pool, 'tonal.key_scale')
+	key.strength >> (pool, 'tonal.key_strength')
+	
+	# network is ready, run it
+	essentia.run(loader)
+	
+	print pool['tonal.key_key'] + " " + pool['tonal.key_scale']
+	
+	# write to json file
+	YamlOutput(filename=outfile, format="json")(pool)
+
 
 # 
 # # Use MonoLoader - returns down-mixed and resampled audio
