@@ -290,8 +290,8 @@ class Sound(FreesoundObject):
 
         >>> sound.retrieve_preview("/tmp")
         """
-        path = os.path.join(directory, name if name else str(self.previews.preview_lq_mp3.split("/")[-1]))
-        return FSRequest.retrieve(self.previews.preview_lq_mp3, self.client,path)
+        path = os.path.join(directory, name if name else str(self.previews.preview_hq_mp3.split("/")[-1]))
+        return FSRequest.retrieve(self.previews.preview_hq_mp3, self.client,path)
 
     def get_analysis(self, descriptors=None):
         """

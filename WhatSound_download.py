@@ -1,9 +1,9 @@
 import os, errno, json
 import freesound
+import sys
 
+#Freesound.org API key - passed as a token with every request
 API_KEY = "518e7f5dcf83e2551abbb2f1a8d87bc4945dcb6f";
-
-keyword = "guitar"
 
 descriptors = "lowlevel.spectral_centroid," + \
             "lowlevel.mfcc.mean,lowlevel.pitch_salience," + \
@@ -11,7 +11,6 @@ descriptors = "lowlevel.spectral_centroid," + \
             "tonal.chords_count," + \
             "tonal.key_strength"
             
-print descriptors
 
 filter_param = "samplerate: 44100 channels: 2 duration: [5 TO 10]"
 
@@ -31,7 +30,7 @@ class Downloader:
         ## license
         ## analysis
         ## descriptors=[lowlevel.spectral_centroid, lowlevel.mfcc.mean]
-        self.fields = "id,name,previews,username,analysis"
+        self.fields = "id,name,description,previews,username,analysis"
         
         
         
@@ -53,24 +52,27 @@ class Downloader:
             
         # Array to store the Sound objects
         sounds = []
+        print "Query: \"" + keyword + "\""
         for i in range(len(results_pager.results)):
             #Get the current item
             result = results_pager[i]
-            
+            description = result.description
+            # print result.__dict__
             #Create a directory to save the audio and descriptors
-            path = "sounds/" + query + "/" + result.name
+            path = "../samples/train/" + query + "/" + result.name
             # print "Previews:" ,result.previews.preview_hq_mp3
             # print "Username: ", result.username
             # print "Analysis: " , result.analysis, "\n"
             
             # Save the previews in the sounds/ directory using the sound filename            
-            print "Downloading sound " + str(i) + " of " + str(len(results_pager.results))
-            # result.retrieve_preview("sounds/" + query, name=True)
+            print "\n- Downloading sound " + str(i + 1) + " of " + str(len(results_pager.results)) + " with filename: " + result.name + \
+                        "\n  Description: " + result.description[0:30] + "..."
+            result.retrieve_preview("../samples/train/" + query)
             
             # Get the sound features and save them to a JSON file
-            features = result.get_analysis(descriptors=descriptors)
-            print features
-            export_json_features(features, result.name, path)
+            # features = result.get_analysis(descriptors=descriptors)
+            # print features
+            # export_json_features(features, result.name, path)
             
 def create_path(keyword):
     try:
@@ -92,8 +94,17 @@ def export_json_features(dict, name, path):
         # }
         json.dump(dict, json_file)
             
+#----------------------------MAIN PROGRAM--------------------------
 if __name__ == "__main__":
-    #Create directory to save the previews in
-    create_path("sounds/" + keyword)
-    downloader = Downloader();    
-    downloader.get_sounds(query=keyword)
+    #Validate arguments
+    if len(sys.argv) != 2:
+        print "Incorrect usage. Please provide keyword as argument: " +\
+        "\npython WhatSound_download.py <keyword>"
+        sys.exit()
+    else:   #Parse the argument
+        keyword = sys.argv[1]   
+        #Create directory to save the previews in
+        create_path("../samples/train/" + keyword)
+        #Download sounds 
+        downloader = Downloader();    
+        downloader.get_sounds(query=keyword)

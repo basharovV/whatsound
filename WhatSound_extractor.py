@@ -55,7 +55,7 @@ def meanMfcc(filename, outfile="key"):
 	
 	mfccs = []
 	
-	for frame in FrameGenerator(audio, frameSize = 1024, hopSize = 512):
+	for frame in FrameGenerator(audio, frameSize = 2048, hopSize = 512):
 		mfcc_bands, mfcc_coeffs = mfcc(spectrum(w(frame)))
 		pool.add('lowlevel.mfcc', mfcc_coeffs)
 		pool.add('lowlevel.mfcc_bands', mfcc_bands)
@@ -86,8 +86,8 @@ def meanMfcc(filename, outfile="key"):
 	#Write the mean mfcc to another pool
 	meanMfccPool = essentia.Pool()
 	meanMfccPool.add('mean_mfcc', aggrPool['lowlevel.mfcc.mean'])
-	print ("The pool size (aggr mean mfcc) is : " 
-		+ str(size(meanMfccPool['mean_mfcc'])))
+	# print ("The pool size (aggr mean mfcc) is : " 
+		# + str(size(meanMfccPool['mean_mfcc'])))
 	output = YamlOutput(filename = 'mean_mfcc.sig')
 	
 	output(meanMfccPool)
@@ -95,7 +95,7 @@ def meanMfcc(filename, outfile="key"):
 	# with open('mean_mfcc.sig', 'r') as file:
 	#     features = yaml.load(file)
 	values = meanMfccPool['mean_mfcc']
-	print "Values for " + str(filename) + " : " + str(values)
+	# print "Values for " + str(filename) + " : " + str(values)
 	return values
 	
 def extractKey(filename, outfile="key"):
