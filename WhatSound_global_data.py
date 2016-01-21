@@ -15,7 +15,7 @@ global weights_in_out
 N_output = 3
 
 # Number of input neurons
-N_input = 15
+N_input = 16
 
 # Number of hidden layers
 N_hidden_layers = 3

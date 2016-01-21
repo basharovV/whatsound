@@ -27,11 +27,12 @@ def extractFeatures(filename, mfcc=True, key_strength=True, spectral_flux=True):
 	features = meanMfcc(filename)
 	feature2 = np.array([extractKey(filename)])
 	feature3 = np.array([extractSpectralFlux(filename)])
+	feature4 = np.array([extractZCR(filename)])
 	
 	# feature2.reshape(1)
 	# print feature2
 	
-	result = np.append(features, [feature2, feature3])
+	result = np.append(features, [feature2, feature3, feature4])
 	
 	# print "FEATURES:" + \
 		# "Size:" + str(len(result)) + "VECTOR: " + str(result)
@@ -133,6 +134,34 @@ def meanMfcc(filename, outfile="key"):
 	# print "Values for " + str(filename) + " : " + str(values)
 	values_norm = normalize(values)
 	return values_norm
+
+def extractZCR(filename):
+	loader = essentia.standard.MonoLoader(filename=filename)
+	audio = loader()
+	zcr = essentia.standard.ZeroCrossingRate()
+	windowing = essentia.standard.Windowing(type="hann")
+	spectrum = essentia.standard.Spectrum()
+	
+	pool = essentia.Pool()
+	
+	fluxArray = []
+	
+	zerocrossingrate = zcr(audio)
+	# for frame in FrameGenerator(audio, frameSize = 2048, hopSize = 512):
+	# 	zerocrossingrate = zcr(spectrum(windowing(frame)))
+	# 	print "zerocrossingrate: " + str(zerocrossingrate)
+	# 	pool.add('lowlevel.zerocrossingrate', zerocrossingrate)
+	
+	aggrPool = essentia.standard.PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
+	
+	#Write the mean mfcc to another pool
+	meanZCRPool = essentia.Pool()
+	meanZCRPool.add('zerocrossingrate', zerocrossingrate)
+	
+	print "ZCR: " + str(meanZCRPool['zerocrossingrate'])
+	
+	avg_zcr = meanZCRPool['zerocrossingrate'][0]
+	return avg_zcr
 	
 def extractKey(filename, outfile="key"):
 	# initialize algorithms we will use
