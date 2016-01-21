@@ -37,7 +37,7 @@ class Downloader:
     """
     Method to retrieve the list of sounds queried using the freesound apiv2
     """
-    def get_sounds(self, query="", tag=None, durationFrom=5, durationTo=10, results=5):
+    def get_sounds(self, query="", tag=None, durationFrom=5, durationTo=10, results=50):
         # Text search returns an interable Pager object
         queryText = query + "&page_size=" + str(self.results_limit) +\
             "&normalized=" + str(self.normalized)

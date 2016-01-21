@@ -19,12 +19,12 @@ from pybrain.utilities           import percentError
 from pybrain.tools.shortcuts     import buildNetwork
 from pybrain.supervised.trainers import BackpropTrainer
 from pybrain.structure.modules   import SoftmaxLayer, SigmoidLayer, TanhLayer
-from sklearn.preprocessing import MinMaxScaler, MaxAbsScaler
+from sklearn.preprocessing import MinMaxScaler, MaxAbsScaler, StandardScaler
 from sklearn.preprocessing import normalize
 import numpy as np
 from numpy import array
 import WhatSound_global_data
-from WhatSound_extractor import meanMfcc
+from WhatSound_extractor import *
 import yaml
 import essentia
 from __builtin__ import file
@@ -51,11 +51,11 @@ class NeuralNetwork():
         self.values = []
         self.classes = ["music", "voice", "ambient"]
         
-        self.data_set = ClassificationDataSet(13, nb_classes=self.out_nodes
+        self.data_set = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes
             , class_labels=['music', 'voice', 'ambient'])
             
-        self.ann = buildNetwork(13, self.hid_layers, self.out_nodes, bias=True, \
-            recurrent=False, outclass=SigmoidLayer)
+        self.ann = buildNetwork(self.in_nodes, self.hid_layers, self.out_nodes, bias=True, \
+            recurrent=False, outclass=SoftmaxLayer)
     
     """
     Generate a data set for the files in the given directory. The data set 
@@ -63,8 +63,16 @@ class NeuralNetwork():
     [feature_vector, audio_class]
     """
     def addSetFromDir(self, directory, testing=False, sound_class=0):
+        """
+        SET OF FEATURES:
+        1. mfcc
+        2. key strength
+        """
+        
         #Normalizer from scikit-learn
+        minmax_scaler = MinMaxScaler()
         norm_scaler = MaxAbsScaler()
+        std_scaler = StandardScaler()
         
         files = os.listdir(directory)
         samples = [""] * len(files)
@@ -74,27 +82,34 @@ class NeuralNetwork():
         #----TESTING----
         if (testing == True):            
             # Add the features to the data set
-            tstdata = ClassificationDataSet(13, nb_classes=self.out_nodes, \
+            tstdata = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes, \
                 class_labels=['music', 'voice', 'ambient'])
                 
             for i in range(len(samples)):
-                feature_vector = meanMfcc(samples[i])
-                # print "Feature vector: " + str(feature_vector)
-                feature_vector_norm = norm_scaler.fit_transform(feature_vector)
-                print "Normalized: " + str(feature_vector_norm)
-                tstdata.addSample(feature_vector_norm, sound_class) 
+                F_test = extractFeatures(samples[i])
+                print "Feature vector: " + str(F_test)
+                tstdata.addSample(F_test, sound_class) 
             tstdata._convertToOneOfMany()
             return tstdata
             
         #----TRAINING----
         # Add the features to the data set
         for i in range(len(samples)):
-            feature_vector = meanMfcc(samples[i])
-            # print "Feature vector: " + str(feature_vector)
-            feature_vector_norm = norm_scaler.fit_transform(feature_vector)
-            print "Normalized feature vector: " + str(feature_vector_norm)
-            self.data_set.addSample(feature_vector_norm, sound_class)
+            F_train = extractFeatures(samples[i])
+            # print "Feature vector: " + str(F_train)
+            
+            # NORMALIZATION for every feature vector
+            # - 1. Convert to numpy array
+            # feature_vector_np = np.array(feature_vector)
+            # feature_vector_norm = feature_vector_np / feature_vector_np.max(axis=0)
+            # 
+            # feature_vector_norm = norm_scaler.fit_transform(feature_vector)
+            # std_scaler.fit(feature_vector)
+            # feature_vector = std_scaler.transform(feature_vector)
+            # print "Normalized: " + str(feature_vector)
+            self.data_set.addSample(F_train, sound_class)
         return self.data_set
+    
     
     """
     Train the network for a specified number of epochs, or alternatively 
@@ -105,11 +120,11 @@ class NeuralNetwork():
         self.data_set._convertToOneOfMany()
         
         trainer = BackpropTrainer(self.ann, learningrate=self.lrn_rate, dataset=self.data_set, \
-            momentum=self.momentum, verbose=False, weightdecay=self.weight_decay)
+            momentum=self.momentum, verbose=True, weightdecay=self.weight_decay)
         
         print "\n*****Starting training..."
-        for i in range(15):
-            trainer.trainEpochs(200)
+        for i in range(50):
+            trainer.trainEpochs(50)
             # trainer.trainUntilConvergence()
             trnresult = percentError(trainer.testOnClassData(dataset=self.data_set), self.data_set['class'])
             self.report_error(trainer, self.data_set)
@@ -118,7 +133,7 @@ class NeuralNetwork():
             
     def report_error(self, trainer, trndata):
         trnresult = percentError(trainer.testOnClassData(), trndata['class'])
-        print "------------> epoch: %4d" % trainer.totalepochs, "  train error: %5.2f%%" % trnresult
+        print "\n------------> epoch: %4d" % trainer.totalepochs, "  train error: %5.2f%%" % trnresult + "\n"
         
         
     def testOnDir(self, directory, audio_class=0):
@@ -132,7 +147,7 @@ class NeuralNetwork():
         tstdata = self.addSetFromDir(directory, testing=True, sound_class=audio_class)
         print "testdata: \n" + str(tstdata)
         for i in range(tstdata.getLength()):            
-            one_sample = ClassificationDataSet(13, nb_classes=self.out_nodes, \
+            one_sample = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes, \
                 class_labels=['music', 'voice', 'ambient'])
             one_sample.addSample(tstdata.getSample(index=i)[0], audio_class)    
             out = self.ann.activateOnDataset(one_sample)
@@ -177,8 +192,14 @@ if __name__ == "__main__":
     network.printParams()
     # Add training data
     print "\n *Extracting features..."
+    
+    network.addSetFromDir("../samples/train/strings/", sound_class=0)
     network.addSetFromDir("../samples/train/guitar/", sound_class=0)
     network.addSetFromDir("../samples/train/male voice/", sound_class=1)
+    network.addSetFromDir("../samples/train/female voice/", sound_class=1)
+    
+    network.addSetFromDir("../samples/train/city/", sound_class=2)
+    network.addSetFromDir("../samples/train/car/", sound_class=2)
     # Start training
     network.train()
     

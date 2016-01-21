@@ -1,10 +1,43 @@
 import essentia
+import essentia.standard
 from essentia.standard import *
-import essentia.streaming
+from essentia.streaming import *
 import sys
 from pylab import *
+from sklearn.preprocessing import MinMaxScaler, MaxAbsScaler, StandardScaler
+from sklearn.preprocessing import normalize
 import matplotlib.pyplot as plt
 import numpy as np
+
+
+
+def extractFeatures(filename, mfcc=True, key_strength=True, spectral_flux=True):
+	"""
+	Extract features for the provided audio filename.
+	
+	Args:
+		filename: The audio file used for feature extraction.
+	kwargs:
+		mfcc (bool): Toggle mel-freq-spectrum-coefficients
+		key_strength (bool): Toogle key 'strength' eg. F# major with 0.36 strength
+		spectral_flux (bool): Toggle avg flux for this audio file.
+	Returns:
+		result: The feature vector.
+	"""
+	features = meanMfcc(filename)
+	feature2 = np.array([extractKey(filename)])
+	feature3 = np.array([extractSpectralFlux(filename)])
+	
+	# feature2.reshape(1)
+	# print feature2
+	
+	result = np.append(features, [feature2, feature3])
+	
+	# print "FEATURES:" + \
+		# "Size:" + str(len(result)) + "VECTOR: " + str(result)
+	return result
+	
+	
 
 # def show_mfcc(audio_file):
 # 	loader = essentia.standard.MonoLoader(filename = audio_file)
@@ -49,9 +82,9 @@ def meanMfcc(filename, outfile="key"):
 	audio = loader()
 	pool = essentia.Pool()
 	
-	w = Windowing(type = 'hann')
-	spectrum = Spectrum()
-	mfcc = MFCC()
+	w = essentia.standard.Windowing(type = 'hann')
+	spectrum = essentia.standard.Spectrum()
+	mfcc = essentia.standard.MFCC()
 	
 	mfccs = []
 	
@@ -81,22 +114,25 @@ def meanMfcc(filename, outfile="key"):
 	# Say we're not interested in all the MFCC frames, but just their mean & variance.
 	# To this end, we have the PoolAggregator algorithm, that can do all sorts of
 	# aggregation: mean, variance, min, max, etc...
-	aggrPool = PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
+	aggrPool = essentia.standard.PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
 	
 	#Write the mean mfcc to another pool
 	meanMfccPool = essentia.Pool()
 	meanMfccPool.add('mean_mfcc', aggrPool['lowlevel.mfcc.mean'])
 	# print ("The pool size (aggr mean mfcc) is : " 
 		# + str(size(meanMfccPool['mean_mfcc'])))
-	output = YamlOutput(filename = 'mean_mfcc.sig')
-	
-	output(meanMfccPool)
+	# output = YamlOutput()
+	# output(filename = 'mean_mfcc.sig')
+	# 
+	# output(meanMfccPool)
 	
 	# with open('mean_mfcc.sig', 'r') as file:
 	#     features = yaml.load(file)
-	values = meanMfccPool['mean_mfcc']
+	values = np.array(meanMfccPool['mean_mfcc'][0])
+	values = np.reshape(values, (-1, 1))
 	# print "Values for " + str(filename) + " : " + str(values)
-	return values
+	values_norm = normalize(values)
+	return values_norm
 	
 def extractKey(filename, outfile="key"):
 	# initialize algorithms we will use
@@ -129,11 +165,53 @@ def extractKey(filename, outfile="key"):
 	# network is ready, run it
 	essentia.run(loader)
 	
-	print pool['tonal.key_key'] + " " + pool['tonal.key_scale']
+	# print str(pool['tonal.key_key']), \
+		# str(pool['tonal.key_scale']),  "Key strength: " ,  str(pool['tonal.key_strength'])
 	
-	# write to json file
-	YamlOutput(filename=outfile, format="json")(pool)
+	return pool['tonal.key_strength']
+	
+	# # write to json file
+	# YamlOutput(filename=outfile, format="json")(pool)
+	
+def extractSpectralFlux(filename):
+	loader = essentia.standard.MonoLoader(filename=filename)
+	audio = loader()
+	flux = essentia.standard.Flux()
+	windowing = essentia.standard.Windowing(type="blackmanharris62")
+	spectrum = essentia.standard.Spectrum()
+	
+	pool = essentia.Pool()
+	
+	fluxArray = []
+	
+	for frame in FrameGenerator(audio, frameSize = 2048, hopSize = 512):
+		flux_val = flux(spectrum(windowing(frame)))
+		pool.add('lowlevel.flux', flux_val)
+	
+	aggrPool = essentia.standard.PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
+	
+	#Write the mean mfcc to another pool
+	meanFluxPool = essentia.Pool()
+	meanFluxPool.add('mean_flux', aggrPool['lowlevel.flux.mean'])
+	
+	# print meanFluxPool['mean_flux']
+	
+	avg_flux = meanFluxPool['mean_flux'][0]
+	return avg_flux
 
+def normalize(features):
+	minmax_scaler = MinMaxScaler()
+	minmax_scaler.fit(features)
+	features = minmax_scaler.transform(features)
+	features_norm = np.reshape(features, -1)
+	return features_norm
+
+	
+if __name__ == "__main__":
+	# extractKey("../samples/train/male voice/26456_186469-hq.mp3")
+	# print "Guitar"
+	# extractKey("../samples/train/guitar/30401_199517-hq.mp3")
+	print extractFeatures("../samples/train/guitar/30401_199517-hq.mp3")
 
 # 
 # # Use MonoLoader - returns down-mixed and resampled audio
