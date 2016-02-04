@@ -7,9 +7,9 @@
      *speech
      *ambient
      *silence
-    The majority of the data used for training is samples fetched from 
-    freesound.org using the freesound-python API client library. 
-    ------------------------------------------------------------------------- 
+    The majority of the data used for training is samples fetched from
+    freesound.org using the freesound-python API client library.
+    -------------------------------------------------------------------------
     Author: Vyacheslav Basharov
     Version 10/12/2015
 """
@@ -19,6 +19,7 @@ from pybrain.utilities           import percentError
 from pybrain.tools.shortcuts     import buildNetwork
 from pybrain.supervised.trainers import BackpropTrainer
 from pybrain.structure.modules   import SoftmaxLayer, SigmoidLayer, TanhLayer
+from pybrain.tools.customxml import NetworkReader, NetworkWriter
 from sklearn.preprocessing import MinMaxScaler, MaxAbsScaler, StandardScaler
 from sklearn.preprocessing import normalize
 import numpy as np
@@ -29,6 +30,7 @@ import yaml
 import essentia
 from __builtin__ import file
 import os
+import sys
 
 
 class NeuralNetwork():
@@ -36,10 +38,12 @@ class NeuralNetwork():
     def __init__(self,
                     in_nodes=WhatSound_global_data.N_input,
                     weight_decay=WhatSound_global_data.Weight_decay,
-                    hid_layers=WhatSound_global_data.N_hidden_layers, 
-                    out_nodes=WhatSound_global_data.N_output, 
-                    lrn_rate=WhatSound_global_data.Learning_rate, 
-                    momentum=WhatSound_global_data.Momentum):
+                    hid_layers=WhatSound_global_data.N_hidden_layers,
+                    out_nodes=WhatSound_global_data.N_output,
+                    lrn_rate=WhatSound_global_data.Learning_rate,
+                    momentum=WhatSound_global_data.Momentum,
+                    classes=WhatSound_global_data.Classes,
+                    reset=False):
         
         # INITIALISE NETWORK PARAMS
         self.in_nodes = in_nodes
@@ -49,160 +53,153 @@ class NeuralNetwork():
         self.momentum = momentum
         self.weight_decay = weight_decay
         self.values = []
-        self.classes = ["music", "voice", "ambient"]
+        self.classes = classes
+        self.trained = False
+        self.reset = reset
+        self.train_set = None
+        self.test_set = None
+        self.extractor = Extractor()
         
-        self.data_set = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes
-            , class_labels=['music', 'voice', 'ambient'])
+        if os.path.exists("wsnetwork.xml") is False:
+            self.ann = buildNetwork(self.in_nodes, self.hid_layers, self.out_nodes, bias=True, \
+                recurrent=False, outclass=SoftmaxLayer)
+        else:
+            self.ann = NetworkReader.readFrom("wsnetwork.xml")
+            self.trained = True
             
-        self.ann = buildNetwork(self.in_nodes, self.hid_layers, self.out_nodes, bias=True, \
-            recurrent=False, outclass=SoftmaxLayer)
-    
-    """
-    Generate a data set for the files in the given directory. The data set 
-    consists of tuples in the following format:
-    [feature_vector, audio_class]
-    """
-    def addSetFromDir(self, directory, testing=False, sound_class=0):
+    def addSetFromDir(self, directory, testing=False, testWhileTrain=False, sound_class=0):
         """
-        SET OF FEATURES:
-        1. mfcc
-        2. key strength
+        Generate a data set for the files in the given directory. The data set
+        consists of tuples in the following format:
+        [feature_vector, audio_class]
         """
         
-        #Normalizer from scikit-learn
-        minmax_scaler = MinMaxScaler()
-        norm_scaler = MaxAbsScaler()
-        std_scaler = StandardScaler()
-        
-        files = os.listdir(directory)
-        samples = [""] * len(files)
-        for i in range(len(files)):
-            samples[i] = directory + files[i]
-            
-        #----TESTING----
-        if (testing == True):            
-            # Add the features to the data set
-            tstdata = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes, \
-                class_labels=['music', 'voice', 'ambient'])
-                
-            for i in range(len(samples)):
-                F_test = extractFeatures(samples[i])
-                print "Feature vector: " + str(F_test)
-                tstdata.addSample(F_test, sound_class) 
-            tstdata._convertToOneOfMany()
-            return tstdata
-            
         #----TRAINING----
-        # Add the features to the data set
-        for i in range(len(samples)):
-            F_train = extractFeatures(samples[i])
-            # print "Feature vector: " + str(F_train)
+        if not testing:
+            self.train_set = self.extractor.getFeatureSet(directory, mfcc=True, \
+                key_strength=True, spectral_flux=True, zerocrossingrate=True)
+            return self.train_set
+        
+        #----TESTING----
+        else:
+            self.test_set = self.extractor.getFeatureSet(directory, mfcc=True, \
+                key_strength=True, spectral_flux=True, zerocrossingrate=True)
+            return self.test_set
             
-            # NORMALIZATION for every feature vector
-            # - 1. Convert to numpy array
-            # feature_vector_np = np.array(feature_vector)
-            # feature_vector_norm = feature_vector_np / feature_vector_np.max(axis=0)
-            # 
-            # feature_vector_norm = norm_scaler.fit_transform(feature_vector)
-            # std_scaler.fit(feature_vector)
-            # feature_vector = std_scaler.transform(feature_vector)
-            # print "Normalized: " + str(feature_vector)
-            self.data_set.addSample(F_train, sound_class)
-        return self.data_set
-    
-    
-    """
-    Train the network for a specified number of epochs, or alternatively 
-    train until the network converges.
-    """
     def train(self, epochs=50):
-        
-        self.data_set._convertToOneOfMany()
-        
-        trainer = BackpropTrainer(self.ann, learningrate=self.lrn_rate, dataset=self.data_set, \
+        """
+        Train the network for a specified number of epochs, or alternatively
+        train until the network converges.
+        """
+        self.train_set._convertToOneOfMany()
+        trainer = BackpropTrainer(self.ann, learningrate=self.lrn_rate, dataset=self.train_set, \
             momentum=self.momentum, verbose=True, weightdecay=self.weight_decay)
-        
+            
         print "\n*****Starting training..."
         for i in range(50):
             trainer.trainEpochs(50)
             # trainer.trainUntilConvergence()
-            trnresult = percentError(trainer.testOnClassData(dataset=self.data_set), self.data_set['class'])
-            self.report_error(trainer, self.data_set)
+            self.report_error(trainer)
         print "\n*****Training finished!*****"
-            
-            
-    def report_error(self, trainer, trndata):
-        trnresult = percentError(trainer.testOnClassData(), trndata['class'])
-        print "\n------------> epoch: %4d" % trainer.totalepochs, "  train error: %5.2f%%" % trnresult + "\n"
+        NetworkWriter.writeToFile(self.ann, "wsnetwork.xml")
+        print "Network successfully saved to wsnetwork.xml"
         
-        
+    def report_error(self, trainer):
+        trnresult = percentError(trainer.testOnClassData(), self.train_set['class'])
+        tstresult = percentError(trainer.testOnClassData(dataset=self.test_set), self.test_set['class'])
+        print "\n------------> epoch: %4d" % trainer.totalepochs, "  + \
+            train error: %5.2f%%" % trnresult + "    test error:" + "%5.2f%%" % tstresult
+    
     def testOnDir(self, directory, audio_class=0):
-        """Test the features for an audio classifier. 
-        Set up the test classification set, and populate it with samplesq.
+        """Test the features for an audio classifier.
+        Set up the test classification set, and populate it with samples.
         Currently samples are the same as the training samples. 07/11/15
-        """ 
+        """
         
         print "\n*****Testing on audio files in " + directory + "...\n"
         #Generate the testing data set
-        tstdata = self.addSetFromDir(directory, testing=True, sound_class=audio_class)
-        print "testdata: \n" + str(tstdata)
-        for i in range(tstdata.getLength()):            
+        tstdata = self.test_set
+        # print "testdata: \n" + str(tstdata)
+        for i in range(tstdata.getLength()):
             one_sample = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes, \
-                class_labels=['music', 'voice', 'ambient'])
-            one_sample.addSample(tstdata.getSample(index=i)[0], audio_class)    
+                class_labels=self.classes)
+            target_class = (tstdata.getSample(index=i)[1]).argmax()
+            one_sample.addSample(tstdata.getSample(index=i)[0], \
+                target_class)
+            # print "SAMPLE CONTENT: " + str(tstdata.getSample(index=i))
             out = self.ann.activateOnDataset(one_sample)
-            print "\n     Output activation -->: " + str(out)
+            print "\nActivation values: " + str(out)
             out = out.argmax()  # the highest output activation gives the class
-            print ("     ===================================================" +\
-                   "\n     #   Output: The test tuple is of type: **" 
-                    + str(self.classes[out]) + "**" + "   #" +\
-                   "\n     ===================================================")
-                            
-                
-        print "Error: " + str(percentError(out, tstdata['class'])) + "%"
-        tstdata.clear()
-        #Invoke the actiovation function to classify the test data. 
+            print "TARGET: " + str(target_class) + "  |  OUTPUT CLASS: " +   str(out) \
+                + " -> " + str(self.classes[out])
+        
+        print "Error: " + str(percentError(out, tstdata['class'])) + "%" + "\n**"
+        # tstdata.clear()
+        #Invoke the actiovation function to classify the test data.
     
-    def printParams(self):
-        print ("===================== PARAMETERS ==========================\n"
+    def print_info(self):
+        print "Audio classes: MUSIC, VOICE, AMBIENT, SILENCE"
+        print ("                      PARAMETERS\n"
              + "----> Input neurons: " + str(self.in_nodes) + "\n"
              + "----> Output neurons: " + str(self.out_nodes) + "\n"
              + "----> Number of hidden layers: " + str(self.hid_layers) + "\n"
              + "----> Learning rate: " + str(self.lrn_rate) + "\n"
              + "----> Momentum: " + str(self.momentum) + "\n"
              + "----> Weight Decay: " + str(self.weight_decay) + "\n"
-             + "==========================================================="
+             + "__________________________________________________________"
                )
-
+    
 
 #-------------------------------MAIN PROGRAM-----------------------------------
 
 if __name__ == "__main__":
-    
+
     print (
-        "------------------------------------------------------------\n"
-        +"=========================[whatsound]=======================\n"
-        +"                           *******                         \n"
-        +"              Neural network audio classification          \n"
-        +"===========================================================\n"
+         ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n"
+        +"                         [whatsound]\n"
+        +"                           *******\n"
+        +"              Neural network audio classification\n"
+        +". . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n"
         )
-    
+
+
+
     # Initialise network
     network = NeuralNetwork()
-    network.printParams()
-    # Add training data
-    print "\n *Extracting features..."
-    
-    network.addSetFromDir("../samples/train/strings/", sound_class=0)
-    network.addSetFromDir("../samples/train/guitar/", sound_class=0)
-    network.addSetFromDir("../samples/train/male voice/", sound_class=1)
-    network.addSetFromDir("../samples/train/female voice/", sound_class=1)
-    
-    network.addSetFromDir("../samples/train/city/", sound_class=2)
-    network.addSetFromDir("../samples/train/car/", sound_class=2)
-    # Start training
-    network.train()
-    
+    network.print_info()
+    train = True
+    if network.trained:
+        prompt = "Network is already trained. Re-run training? (y/n) "
+        inc_prompt = "Invalid input. Re-run training? (y/n) "
+        # Check if user wants to re-train network
+        train_toggle = raw_input(prompt) \
+            if sys.version_info[0] < 3 \
+            else input(prompt)
+        while train_toggle not in 'YyNn':
+            train_toggle = raw_input(inc_prompt) \
+                if sys.version_info[0] < 3 \
+                else input(inc_prompt)
+        if train_toggle in 'Nn':
+            train = False
+
+    if train:
+        network = NeuralNetwork(reset=True)
+        print "Neural network reset. Starting..."
+    # # Add training data
+    # print "\n *Extracting features..."
+    #
+    # # ------------ TRAINING DATA SET -----------------------
+    #
+    # network.addSetFromDir("../samples/train/")
+
+    # ------------------ TESTING DATA SET --------------------------
+
+    network.addSetFromDir("../samples/test/", testing=True)
+
+
+    if train:
+        # Start training
+        network.train()
+
     # Test on directories
-    network.testOnDir("../samples/test/music/", audio_class=0)
-    network.testOnDir("../samples/test/voice/", audio_class=1)
+    network.testOnDir("../samples/test/")

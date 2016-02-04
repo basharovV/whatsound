@@ -37,10 +37,11 @@ class Downloader:
     """
     Method to retrieve the list of sounds queried using the freesound apiv2
     """
-    def get_sounds(self, query="", tag=None, durationFrom=5, durationTo=10, results=50):
+    def get_sounds(self, query="", tag=None, durationFrom=5, durationTo=10, resultsLimit=20):
         # Text search returns an interable Pager object
-        queryText = query + "&page_size=" + str(self.results_limit) +\
-            "&normalized=" + str(self.normalized)
+        # queryText = query + "&page_size=" + str(self.results_limit) +\
+        #     "&normalized=" + str(self.normalized)
+        queryText = query + "&normalized=" + str(self.normalized)
         
         filterText = "samplerate: 44100 channels: 2 duration: [" + \
             str(durationFrom) + " TO " + str(durationTo) + "]"
@@ -53,22 +54,33 @@ class Downloader:
         # Array to store the Sound objects
         sounds = []
         print "Query: \"" + keyword + "\""
-        for i in range(len(results_pager.results)):
-            #Get the current item
-            result = results_pager[i]
-            description = result.description
-            # print result.__dict__
-            #Create a directory to save the audio and descriptors
-            path = "../samples/train/" + query + "/" + result.name
-            # print "Previews:" ,result.previews.preview_hq_mp3
-            # print "Username: ", result.username
-            # print "Analysis: " , result.analysis, "\n"
-            
-            # Save the previews in the sounds/ directory using the sound filename            
-            print "\n- Downloading sound " + str(i + 1) + " of " + str(len(results_pager.results)) + " with filename: " + result.name + \
-                        "\n  Description: " + result.description[0:30] + "..."
-            result.retrieve_preview("../samples/train/" + query)
-            
+        count = 0
+        while True:
+            for i in range(len(results_pager.results)):
+                if (count + 1) >= resultsLimit:
+                    break
+                #Get the current item
+                result = results_pager[i]
+                description = result.description
+                # print result.__dict__
+                #Create a directory to save the audio and descriptors
+                path = "../samples/train/" + query + "/" + result.name
+                # print "Previews:" ,result.previews.preview_hq_mp3
+                # print "Username: ", result.username
+                # print "Analysis: " , result.analysis, "\n"
+                
+                # Save the previews in the sounds/ directory using the sound filename            
+                print "\n- Downloading sound " + str(count + 1) + " of " + str(resultsLimit) + " [total : " + \
+                    str(results_pager.count) + "] with filename: " + result.name + \
+                    "\n  Description: " + result.description[0:30] + "..."
+                    
+                result.retrieve_preview("../samples/train/" + query)
+                count = count + 1
+                
+            if (results_pager.next_page() != None) and (count <= resultsLimit):
+                results_pager = results_pager.next_page()
+            else:
+                break     
             # Get the sound features and save them to a JSON file
             # features = result.get_analysis(descriptors=descriptors)
             # print features

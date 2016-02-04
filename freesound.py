@@ -237,6 +237,8 @@ class Pager(FreesoundObject):
         """
         Get a Pager with the next results page.
         """
+        if self.next is None:
+            return None
         return FSRequest.request(self.next, {}, self.client, Pager)
 
     def previous_page(self):
