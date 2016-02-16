@@ -18,6 +18,7 @@ from pybrain.datasets            import ClassificationDataSet
 from pybrain.utilities           import percentError
 from pybrain.tools.shortcuts     import buildNetwork
 from pybrain.supervised.trainers import BackpropTrainer
+from pybrain.structure           import FeedForwardNetwork
 from pybrain.structure.modules   import SoftmaxLayer, SigmoidLayer, TanhLayer
 from pybrain.tools.customxml import NetworkReader, NetworkWriter
 from sklearn.preprocessing import MinMaxScaler, MaxAbsScaler, StandardScaler
@@ -38,7 +39,7 @@ class NeuralNetwork():
     def __init__(self,
                     in_nodes=WhatSound_global_data.N_input,
                     weight_decay=WhatSound_global_data.Weight_decay,
-                    hid_layers=WhatSound_global_data.N_hidden_layers,
+                    hid_nodes=WhatSound_global_data.N_hidden_nodes,
                     out_nodes=WhatSound_global_data.N_output,
                     lrn_rate=WhatSound_global_data.Learning_rate,
                     momentum=WhatSound_global_data.Momentum,
@@ -47,7 +48,7 @@ class NeuralNetwork():
         
         # INITIALISE NETWORK PARAMS
         self.in_nodes = in_nodes
-        self.hid_layers = hid_layers
+        self.hid_nodes = hid_nodes
         self.out_nodes = out_nodes
         self.lrn_rate = lrn_rate
         self.momentum = momentum
@@ -60,13 +61,20 @@ class NeuralNetwork():
         self.test_set = None
         self.extractor = Extractor()
         
-        if os.path.exists("wsnetwork.xml") is False:
-            self.ann = buildNetwork(self.in_nodes, self.hid_layers, self.out_nodes, bias=True, \
+        if os.path.exists("wsnetwork.xml") is False or reset:
+            self.ann = buildNetwork(self.in_nodes, self.hid_nodes, self.out_nodes, bias=True, \
                 recurrent=False, outclass=SoftmaxLayer)
         else:
             self.ann = NetworkReader.readFrom("wsnetwork.xml")
             self.trained = True
             
+    def makeNetwork(self):
+         self.ann = FeedForwardNetwork()
+         inLayer = LinearLayer(self.in_nodes)
+         hiddenLayer = SigmoidLayer(self.hid_nodes)
+         outLayer = LinearLayer(self.out_nodes)
+         
+         
     def addSetFromDir(self, directory, testing=False, testWhileTrain=False, sound_class=0):
         """
         Generate a data set for the files in the given directory. The data set
@@ -91,13 +99,13 @@ class NeuralNetwork():
         Train the network for a specified number of epochs, or alternatively
         train until the network converges.
         """
-        self.train_set._convertToOneOfMany()
+        # self.train_set._convertToOneOfMany()
         trainer = BackpropTrainer(self.ann, learningrate=self.lrn_rate, dataset=self.train_set, \
             momentum=self.momentum, verbose=True, weightdecay=self.weight_decay)
-            
+            # , weightdecay=self.weight_decay
         print "\n*****Starting training..."
-        for i in range(50):
-            trainer.trainEpochs(50)
+        for i in range(25):
+            trainer.trainEpochs(100)
             # trainer.trainUntilConvergence()
             self.report_error(trainer)
         print "\n*****Training finished!*****"
@@ -118,7 +126,9 @@ class NeuralNetwork():
         
         print "\n*****Testing on audio files in " + directory + "...\n"
         #Generate the testing data set
-        tstdata = self.test_set
+        tstdata = self.extractor.getFeatureSet(directory,mfcc=True, \
+            key_strength=True, spectral_flux=True, zerocrossingrate=True)
+        # tstdata._convertToOneOfMany()
         # print "testdata: \n" + str(tstdata)
         for i in range(tstdata.getLength()):
             one_sample = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes, \
@@ -126,9 +136,11 @@ class NeuralNetwork():
             target_class = (tstdata.getSample(index=i)[1]).argmax()
             one_sample.addSample(tstdata.getSample(index=i)[0], \
                 target_class)
-            # print "SAMPLE CONTENT: " + str(tstdata.getSample(index=i))
+            one_sample._convertToOneOfMany()
+            # print "ONE SAMPLE: " + str(one_sample)
             out = self.ann.activateOnDataset(one_sample)
             print "\nActivation values: " + str(out)
+            # print "SAMPLE CONTENT: " + str(tstdata.getSample(index=i))
             out = out.argmax()  # the highest output activation gives the class
             print "TARGET: " + str(target_class) + "  |  OUTPUT CLASS: " +   str(out) \
                 + " -> " + str(self.classes[out])
@@ -142,13 +154,18 @@ class NeuralNetwork():
         print ("                      PARAMETERS\n"
              + "----> Input neurons: " + str(self.in_nodes) + "\n"
              + "----> Output neurons: " + str(self.out_nodes) + "\n"
-             + "----> Number of hidden layers: " + str(self.hid_layers) + "\n"
+             + "----> Number of hidden layers: " + str(self.hid_nodes) + "\n"
              + "----> Learning rate: " + str(self.lrn_rate) + "\n"
              + "----> Momentum: " + str(self.momentum) + "\n"
              + "----> Weight Decay: " + str(self.weight_decay) + "\n"
              + "__________________________________________________________"
                )
     
+    def exportTrainingData(self):
+        export_file = open("traindata.txt", "w+")
+        for i in range(self.train_set.getLength()):
+            export_file.write(str(self.train_set.getSample(index=i)) + "\n")
+        export_file.close()
 
 #-------------------------------MAIN PROGRAM-----------------------------------
 
@@ -186,17 +203,22 @@ if __name__ == "__main__":
         network = NeuralNetwork(reset=True)
         print "Neural network reset. Starting..."
     # # Add training data
-    # print "\n *Extracting features..."
+    print "\n *Extracting features..."
+    
+    
     #
     # # ------------ TRAINING DATA SET -----------------------
     #
-    # network.addSetFromDir("../samples/train/")
+    network.addSetFromDir("../samples/train/")
 
     # ------------------ TESTING DATA SET --------------------------
-
+    
+    
     network.addSetFromDir("../samples/test/", testing=True)
 
-
+    print "PRINTING TRAINING DATA to FILE"
+    network.exportTrainingData()
+    
     if train:
         # Start training
         network.train()

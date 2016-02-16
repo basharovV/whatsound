@@ -24,6 +24,9 @@ class Extractor():
 			self.new_file = False
 			tree_wrapper = etree.parse(self.filename)
 			self.tree_root = tree_wrapper.getroot()
+				
+		#Create data set
+		self.dataset = None
 			
 	def getFeatureSet(self, directory, **kwargs):
 		"""
@@ -41,8 +44,7 @@ class Extractor():
 			dataset: The ClassificationDataSet containing a sample per audio file.
 		"""
 		
-		#Create data set
-		dataset = ClassificationDataSet(WhatSound_global_data.N_input, \
+		self.dataset = ClassificationDataSet(WhatSound_global_data.N_input, \
 			nb_classes=WhatSound_global_data.N_output, \
 			class_labels=WhatSound_global_data.Classes)
 			
@@ -58,17 +60,17 @@ class Extractor():
 			class_dir_path = directory + class_dirs[i]
 			if WhatSound_global_data.Class_indexes.has_key(class_dirs[i]):
 				audio_class = WhatSound_global_data.Class_indexes.get(class_dirs[i])
-				self.addClassFeatures(audio_class, class_dir_path, dataset)
-		print "Generated dataset with size " + str(len(dataset))
-		
-		
+				# print str(class_dir_path) + "belongs to audio class: " + str(audio_class)
+				self.addClassFeatures(audio_class, class_dir_path)
+		print "Generated dataset with size " + str(len(self.dataset))
+		# print "DATASET: " + str(self.dataset)
 		features_file = open(self.filename, 'w+')
 		features_file.write(etree.tostring(self.tree_root, pretty_print=True))
 		
-		dataset._convertToOneOfMany()
-		return dataset
+		self.dataset._convertToOneOfMany()
+		return self.dataset
 	
-	def addClassFeatures(self, audio_class, path, dataset):
+	def addClassFeatures(self, audio_class, path):
 		"""
 		Recursively traverse the class directory, adding any audio features to the
 		data set.
@@ -81,13 +83,15 @@ class Extractor():
 		
 		if os.path.isdir(path):
 			audio_paths = os.listdir(path)
-			print "Audio paths: " + str(audio_paths)
+			# print "Audio paths: " + str(audio_paths)
 			for i in range(len(audio_paths)):
 				audio_full_path = path  + '/' + audio_paths[i]
-				self.addClassFeatures(audio_class, audio_full_path, dataset)
+				# print "Extacting features for " + audio_full_path + \
+				# 	", class: " + str(audio_class)
+				self.addClassFeatures(audio_class, audio_full_path)
 		else:
-			dataset.addSample(self.extractFeatures(path), audio_class)
-			print "Extracting features for " + path + "..."
+			self.dataset.addSample(self.extractFeatures(path), audio_class)
+			# print "Extracting features for " + path + "..."
 			
 	def extractFeatures(self, filepath, \
 		mfcc=True, key_strength=True, spectral_flux=True, save_xml=False):
@@ -120,6 +124,9 @@ class Extractor():
 			features[WhatSound_global_data.feature_list[1]] = np.array([extractKey(filepath)])
 			features[WhatSound_global_data.feature_list[2]] = np.array([extractSpectralFlux(filepath)])
 			features[WhatSound_global_data.feature_list[3]] = np.array([extractZCR(filepath)])
+			features[WhatSound_global_data.feature_list[4]] = np.array([extractPitchStrength(filepath)])
+			features[WhatSound_global_data.feature_list[5]] = extractLPC(filepath)
+			
 			
 			print features
 			# Write feature set to XML tree
@@ -141,7 +148,9 @@ class Extractor():
 						features.get(WhatSound_global_data.feature_list[0]), \
 	 					features.get(WhatSound_global_data.feature_list[1]), \
 						features.get(WhatSound_global_data.feature_list[2]), \
-						features.get(WhatSound_global_data.feature_list[3])), \
+						features.get(WhatSound_global_data.feature_list[3]), \
+						features.get(WhatSound_global_data.feature_list[4]), \
+						features.get(WhatSound_global_data.feature_list[5])),
 						axis=0)
 			
 		return result
@@ -149,17 +158,27 @@ class Extractor():
 	def getFeatureArrayFromXML(self, feature_set):
 		result = None
 		# If not empty - generate array
-		if len(feature_set):	
+		if len(feature_set):
+			# Note: iterating doesn't work (mismatch of values)
+			# need to index through all values
+			feature_count = 0
+			v = 0
 			for feature in feature_set.iter('feature'):
-				for value in feature.iter('value'):
-					etree.tostring(value)
-					print "Value " + value.text
-					if result is None:
-						result = np.array([float(value.text)])
-					else:
-						np.append(result, float(value.text))
+				if feature.get('name') == \
+					WhatSound_global_data.feature_list[feature_count]:
+					# print "Feature: " + etree.tostring(feature)
+					for value in feature.iter('value'):
+						# print etree.tostring(value)
+						if result is None:
+							result = np.array([0.0] * WhatSound_global_data.N_input)	
+						# print "Value " + value.text
+						result[v] = float(value.text)
+						v+=1
+					feature_count+=1
 		print "RESULT: " + str(result)
 		return result.astype(float)
+		
+
 	# def show_mfcc(audio_file):
 	# 	loader = essentia.standard.MonoLoader(filename = audio_file)
 	# 	audio = loader()
@@ -355,12 +374,75 @@ def normalize(features):
 	features_norm = np.reshape(features, -1)
 	return features_norm
 
+def extractPitchStrength(filename):
+	loader = essentia.standard.MonoLoader(filename=filename)
+	audio = loader()
+	pitch_sal = essentia.standard.PitchSalience()
+	windowing = essentia.standard.Windowing(type="blackmanharris62")
+	spectrum = essentia.standard.Spectrum()
+
+	pool = essentia.Pool()
+
+	fluxArray = []
+
+	for frame in FrameGenerator(audio, frameSize = 2048, hopSize = 512):
+		pitch_sal_val = pitch_sal(spectrum(windowing(frame)))
+		pool.add('lowlevel.pitch_strength', pitch_sal_val)
+
+	aggrPool = essentia.standard.PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
+
+	#Write the mean mfcc to another pool
+	mean_ps_pool = essentia.Pool()
+	mean_ps_pool.add('mean_pitch_strength', aggrPool['lowlevel.pitch_strength.mean'])
+
+	# print meanFluxPool['mean_flux']
+
+	avg_pitch_strength = mean_ps_pool['mean_pitch_strength'][0]
+	return avg_pitch_strength
+	
+def extractLPC(filename):
+	loader = essentia.standard.MonoLoader(filename=filename)
+	audio = loader()
+	lpc = essentia.standard.LPC()
+	windowing = essentia.standard.Windowing(type="hann")
+	spectrum = essentia.standard.Spectrum()
+
+	pool = essentia.Pool()
+
+	fluxArray = []
+
+	for frame in FrameGenerator(audio, frameSize = 2048, hopSize = 512):
+		lpc_coeff, refl = lpc(spectrum(windowing(frame)))
+		# print lpc_coeff, refl
+		pool.add('lowlevel.lpc', lpc_coeff)		
+		pool.add('lowlevel.lpc_reflection', refl)
+		
+	print pool.__dict__
+
+	aggrPool = essentia.standard.PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
+
+	#Write the mean mfcc to another pool
+	mean_lpc_pool = essentia.Pool()
+	mean_lpc_pool.add('mean_lpc', aggrPool['lowlevel.lpc.mean'])
+
+	# print meanFluxPool['mean_flux']
+
+	avg_lpc = mean_lpc_pool['mean_lpc'][0]
+	return avg_lpc
 
 if __name__ == "__main__":
 	# extractKey("../samples/train/male voice/26456_186469-hq.mp3")
 	# print "Guitar"
 	# extractKey("../samples/train/guitar/30401_199517-hq.mp3")
-	print extractFeatures("../samples/train/guitar/30401_199517-hq.mp3")
+	print "Music: " +\
+		str(extractLPC("../samples/train/music/electronic/331394_5403529-hq.mp3"))
+	print "Voice: " +\
+		str(extractLPC("../samples/train/voice/male voice/21933_8043-hq.mp3"))
+	print "Ambient: " +\
+		str(extractLPC("../samples/train/ambient/172130_3211085-hq.mp3")) + \
+		str(extractLPC("../samples/train/ambient/city/152810_2366982-hq.mp3"))
+	print "Silence: " +\
+		str(extractLPC("../samples/train/silence/61387_13258-hq.mp3"))
 
 #
 # # Use MonoLoader - returns down-mixed and resampled audio
