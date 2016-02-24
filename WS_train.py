@@ -1,5 +1,5 @@
 """
-    'whatsound' - A neural network approach for classifying audio
+    'WS' - A neural network approach for classifying audio
     -------------------------------------------------------------------------
     This module performs training and classification of provided data sets, with
     one of four possible outputs:
@@ -25,8 +25,8 @@ from sklearn.preprocessing import MinMaxScaler, MaxAbsScaler, StandardScaler
 from sklearn.preprocessing import normalize
 import numpy as np
 from numpy import array
-import WhatSound_global_data
-from WhatSound_extractor import *
+import WS_global_data
+from WS_extractor import *
 import yaml
 import essentia
 from __builtin__ import file
@@ -37,13 +37,14 @@ import sys
 class NeuralNetwork():
     
     def __init__(self,
-                    in_nodes=WhatSound_global_data.N_input,
-                    weight_decay=WhatSound_global_data.Weight_decay,
-                    hid_nodes=WhatSound_global_data.N_hidden_nodes,
-                    out_nodes=WhatSound_global_data.N_output,
-                    lrn_rate=WhatSound_global_data.Learning_rate,
-                    momentum=WhatSound_global_data.Momentum,
-                    classes=WhatSound_global_data.Classes,
+                    in_nodes=WS_global_data.N_input,
+                    weight_decay=WS_global_data.Weight_decay,
+                    hid_nodes=WS_global_data.N_hidden_nodes,
+                    out_nodes=WS_global_data.N_output,
+                    lrn_rate=WS_global_data.Learning_rate,
+                    momentum=WS_global_data.Momentum,
+                    classes=WS_global_data.Classes,
+                    split=WS_global_data.split_proportion,
                     reset=False):
         
         # INITIALISE NETWORK PARAMS
@@ -59,11 +60,20 @@ class NeuralNetwork():
         self.reset = reset
         self.train_set = None
         self.test_set = None
+        self.split = split if WS_global_data.split_enabled else 0.0
         self.extractor = Extractor()
+        
+        """
+        Outclass determines the activation function at the output layer
+        This can be
+        - Softmax function - supposedly better for classicication
+        - Sigmoid function - 
+        """
+        
         
         if os.path.exists("wsnetwork.xml") is False or reset:
             self.ann = buildNetwork(self.in_nodes, self.hid_nodes, self.out_nodes, bias=True, \
-                recurrent=False, outclass=SoftmaxLayer)
+                recurrent=True, outclass=SigmoidLayer)
         else:
             self.ann = NetworkReader.readFrom("wsnetwork.xml")
             self.trained = True
@@ -75,24 +85,27 @@ class NeuralNetwork():
          outLayer = LinearLayer(self.out_nodes)
          
          
-    def addSetFromDir(self, directory, testing=False, testWhileTrain=False, sound_class=0):
+    def add_set_from_dir(self, directory, testing=False):
         """
-        Generate a data set for the files in the given directory. The data set
-        consists of tuples in the following format:
-        [feature_vector, audio_class]
+        Generate a data set for the files in the given directory. 
+        
+        args:
+            directory (String): The path containing the audio files in their
+                                associated directory.
+        kwargs:
+            testing: Flag to set what the data will be used for, training or
+                     testing.
+                
         """
-        
-        #----TRAINING----
-        if not testing:
-            self.train_set = self.extractor.getFeatureSet(directory, mfcc=True, \
-                key_strength=True, spectral_flux=True, zerocrossingrate=True)
-            return self.train_set
-        
-        #----TESTING----
+        data_set = self.extractor.getFeatureSet(directory)
+        if WS_global_data.split_enabled:
+            self.train_set, self.test_set = data_set.\
+                splitWithProportion(WS_global_data.split_proportion)
         else:
-            self.test_set = self.extractor.getFeatureSet(directory, mfcc=True, \
-                key_strength=True, spectral_flux=True, zerocrossingrate=True)
-            return self.test_set
+            if not testing:
+                self.train_set = data_set
+            else:
+                self.test_set = data_set
             
     def train(self, epochs=50):
         """
@@ -100,9 +113,9 @@ class NeuralNetwork():
         train until the network converges.
         """
         # self.train_set._convertToOneOfMany()
-        trainer = BackpropTrainer(self.ann, learningrate=self.lrn_rate, dataset=self.train_set, \
-            momentum=self.momentum, verbose=True, weightdecay=self.weight_decay)
-            # , weightdecay=self.weight_decay
+        trainer = BackpropTrainer(self.ann, learningrate=self.lrn_rate, \
+                dataset=self.train_set, momentum=self.momentum, \
+                verbose=True, weightdecay=self.weight_decay)
         print "\n*****Starting training..."
         for i in range(25):
             trainer.trainEpochs(100)
@@ -118,37 +131,57 @@ class NeuralNetwork():
         print "\n------------> epoch: %4d" % trainer.totalepochs, "  + \
             train error: %5.2f%%" % trnresult + "    test error:" + "%5.2f%%" % tstresult
     
-    def testOnDir(self, directory, audio_class=0):
+    def test_on_file(self, filepath, audio_class):
+        # print "\n*****Testing on audio files in " + directory + "...\n"
+        #Generate the testing data set in 3D list form
+        tstdata = self.extractor.get_file_dataset(filepath, audio_class, as_array=True)
+        one_sample = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes, \
+            class_labels=self.classes)
+        target_class = audio_class
+        one_sample.addSample(tstdata[2][0], \
+            target_class)
+        one_sample._convertToOneOfMany()
+        # print "ONE SAMPLE: " + str(one_sample)
+        activation = self.ann.activateOnDataset(one_sample)
+        out = activation.argmax()
+        print "______________________________________________________" + \
+                "\n\n File: " + tstdata[0][0] + \
+                "\n Activation values: " + str(activation) + \
+                "\n Target : " + str(self.classes[target_class]) + "  |  Output: " + \
+                str(self.classes[out])
+    
+    def test_on_dir(self, directory):
         """Test the features for an audio classifier.
         Set up the test classification set, and populate it with samples.
         Currently samples are the same as the training samples. 07/11/15
         """
         
-        print "\n*****Testing on audio files in " + directory + "...\n"
-        #Generate the testing data set
-        tstdata = self.extractor.getFeatureSet(directory,mfcc=True, \
-            key_strength=True, spectral_flux=True, zerocrossingrate=True)
+        # print "\n*****Testing on audio files in " + directory + "...\n"
+        #Generate the testing data set in 3D list form
+        tstdata = self.extractor.getFeatureSet(directory, as_array=True)
         # tstdata._convertToOneOfMany()
         # print "testdata: \n" + str(tstdata)
-        for i in range(tstdata.getLength()):
+        for i in range(len(tstdata[0])):
             one_sample = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes, \
                 class_labels=self.classes)
-            target_class = (tstdata.getSample(index=i)[1]).argmax()
-            one_sample.addSample(tstdata.getSample(index=i)[0], \
+            target_class = tstdata[1][i]
+            one_sample.addSample(tstdata[2][i], \
                 target_class)
             one_sample._convertToOneOfMany()
             # print "ONE SAMPLE: " + str(one_sample)
-            out = self.ann.activateOnDataset(one_sample)
-            print "\nActivation values: " + str(out)
+            activation = self.ann.activateOnDataset(one_sample)
+            out = activation.argmax()
+            print "______________________________________________________" + \
+                    "\n\n File: " + tstdata[0][i] + \
+                    "\n Activation values: " + str(activation) + \
+                    "\n Target : " + str(self.classes[target_class]) + "  |  Output: " + \
+                    str(self.classes[out])
             # print "SAMPLE CONTENT: " + str(tstdata.getSample(index=i))
-            out = out.argmax()  # the highest output activation gives the class
-            print "TARGET: " + str(target_class) + "  |  OUTPUT CLASS: " +   str(out) \
-                + " -> " + str(self.classes[out])
-        
-        print "Error: " + str(percentError(out, tstdata['class'])) + "%" + "\n**"
+              # the highest output activation gives the class
+            # print "TARGET: "         
+            # print "Error: " + str(percentError(out, target_class)) + "%" + "\n**"
         # tstdata.clear()
-        #Invoke the actiovation function to classify the test data.
-    
+        #Invoke th
     def print_info(self):
         print "Audio classes: MUSIC, VOICE, AMBIENT, SILENCE"
         print ("                      PARAMETERS\n"
@@ -173,13 +206,11 @@ if __name__ == "__main__":
 
     print (
          ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n"
-        +"                         [whatsound]\n"
+        +"                         [WS]\n"
         +"                           *******\n"
         +"              Neural network audio classification\n"
         +". . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n"
         )
-
-
 
     # Initialise network
     network = NeuralNetwork()
@@ -205,16 +236,13 @@ if __name__ == "__main__":
     # # Add training data
     print "\n *Extracting features..."
     
-    
-    #
-    # # ------------ TRAINING DATA SET -----------------------
-    #
-    network.addSetFromDir("../samples/train/")
-
-    # ------------------ TESTING DATA SET --------------------------
-    
-    
-    network.addSetFromDir("../samples/test/", testing=True)
+    # If split is enabled, only add one data set, which will be split into two.
+    if (network.split):
+        network.add_set_from_dir(WS_global_data.data_path)
+    # Otherwise add training and testing set separately
+    else:
+        network.add_set_from_dir(WS_global_data.train_path)
+        network.add_set_from_dir (WS_global_data.test_path, testing=True)
 
     print "PRINTING TRAINING DATA to FILE"
     network.exportTrainingData()
@@ -223,5 +251,5 @@ if __name__ == "__main__":
         # Start training
         network.train()
 
-    # Test on directories
-    network.testOnDir("../samples/test/")
+    # Test on the testing directory
+    network.test_on_dir(WS_global_data.test_path)
