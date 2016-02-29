@@ -1,3 +1,4 @@
+import pyaudio
 # WhatSound global parameters
 #
 # These globals determine the parameters for the structure and functionality of 
@@ -5,27 +6,17 @@
 #
 # Vyacheslav Basharov. Hons Project 2016"""
 
-global N_hidden_layers
-global Learning_rate
-global N_output
-global N_input
-global sigmoid_function
-global weights_hid_out
-global weights_in_hid
-global weights_in_out
-global features_saved
-global feature_list
-global debug
+debug = False
+debug_extra = False
 
-debug = True
-debug_extra = True
+# ------------------------ CLASSIFICATION SETTINGS ----------------------------
 
 N_output = 4
 N_input = 28
 N_hidden_nodes = 14
-Learning_rate = 0.05
-Momentum = 0.2
-Weight_decay = 0.00001
+Learning_rate = 0.08
+Momentum = 0.3
+Weight_decay = 0.0001
 
 """
 Relative paths for the testing and training data sets.
@@ -33,17 +24,11 @@ Relative paths for the testing and training data sets.
 The required directory structure is:
 
 ../samples
-    /train/
-        /music/*
-        /voice/*
-        /misc/*
-        /silence/*
-    /test/
-        /music/*
-        /voice/*
-        /misc/*
-        /silence/*
-        
+    /train/                         /test/
+        /music/*                        /music/*
+        /voice/*                        /voice/*
+        /misc/*                         /misc/*
+        /silence/*                      /silence/*
 Note: subfolders can contain other subfolders.
 """
 train_path = "../samples/train/"
@@ -69,7 +54,7 @@ These may be altered, but require a different directory structure.
 Classes = ['music', 'voice', 'ambient', 'silence']
 Class_indexes = {'music': 0, 'voice': 1, 'ambient': 2, 'silence': 3}
 
-# Feature extraction parameters
+# ---------------------- FEATURE EXTRACTION SETTINGS -------------------------
 feature_list = ['mfcc',
                 'key_strength', 
                 'spectral_flux', 
@@ -85,3 +70,17 @@ feature_sizes = {'mfcc': 13, \
                 'lpc' : 11}
 
 features_saved = False
+
+# ----------------------------- AUDIO SETTINGS ------------------------------
+sample_rate = 44100
+frame_size = 2048
+hop_size = 512
+sample_format = pyaudio.paFloat32
+record_length = 2.0
+
+# ---------------------------  REAL TIME SETTINGS ----------------------------
+
+buffer_size = 2048
+channels = 1
+seconds = 1
+time_interval = 6.0 # in seconds
