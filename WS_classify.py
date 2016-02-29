@@ -7,7 +7,7 @@ import atexit
 import threading as th
 import time
 import WS_utils
-from WS_train import *
+from WS_network import *
 
 class Classifier:
     
