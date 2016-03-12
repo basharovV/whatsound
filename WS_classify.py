@@ -6,8 +6,8 @@ import essentia
 import atexit
 import threading as th
 import time
-import WS_utils
-from WS_network import *
+import core.WS_utils
+from core.WS_network import *
 
 class Classifier:
     
@@ -109,11 +109,13 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="The path of the file to classify")
+    parser.add_argument("-d", "--dir", help="The directory to classify")
+    parser.add_argument("-t", "--target", help="The target audio class")
     parser.add_argument("-r", "--realtime", help="Enable realtime classification",
                         action="store_true")
     
     args = parser.parse_args()
-    if (not (args.file or args.realtime)):
+    if (not (args.file or args.realtime or args.dir)):
         print "Incorrect usage " 
         parser.print_help()
         sys.exit(0)
@@ -123,8 +125,23 @@ if __name__ == "__main__":
         print "Classifier mode : file"     
         filepath = args.file   
         fc = Classifier()
-        fc.network.test_on_file(filepath, 2)
-        
+        if args.__contains__("target"):
+            fc.network.test_on_file(filepath, 
+                        audio_class = args.target,
+                        verbose=False)
+        else: 
+            fc.network.test_on_file(filepath, verbose=False)
+            
+    if args.dir:
+        print "Classifier mode : directory"
+        directory = args.dir
+        fc = Classifier()
+        if args.__contains__("target"):
+            fc.network.test_on_dir(directory,
+                        audio_class = args.target, structured=False,
+                        verbose = False)
+        else: 
+            fc.network.test_on_dir(directory, verbose=False)
     elif args.realtime:
         print "Classifier mode : [real-time]"        
         print "Initialising PyAudio...\n"
@@ -132,7 +149,7 @@ if __name__ == "__main__":
         sc.start_listening()
         # WS_utils.clear_console()
         print "\nInitialisation finished. \nListening...\n"
-    
+        
         while(1):            
             audio, frames = sc.record(WS_global_data.record_length)   
             # Currently testing on a .wav file recorded every x seconds
