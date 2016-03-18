@@ -3,11 +3,12 @@ from whatsound.core import WS_network
 from sklearn.grid_search import ParameterGrid
 import time
 import sys
+
 # CONSTANTS
-DATASET = "samples/test/" # Run as a module from whatsound_project
+DATASET = "samples/train/" # Run as a module from whatsound_project
 BASE_WEIGHTS_PATH = "whatsound/trainer/weights/"
 SPLIT = 0.6 # 60% for training, 40% for testing
-epochs = 50
+epochs = 3000
 
 # PARAMETERS FOR SWEEPING
 hid_nodes = 14
@@ -51,8 +52,8 @@ log_filepath = log_base_path + log_filename
 log_file = open(log_filepath, 'a+')
 
 # Keep a running record of the best average classification accuracy,
-# when the autotrainer is finished we can fetch the confusion matrix for the 
-# params giving the best results. 
+# when the autotrainer is finished we can fetch the confusion matrix for the
+# params giving the best results.
 best_accuracy = 0.0
 best_accuracy_idx = 0
 best_accuracy_weights = 0
@@ -61,7 +62,7 @@ for i in xrange(len(grid)):
     param_set = grid[i]
     sys.stdout.write("\rTraining on param set " + str(i) + " / " + str(len(grid)))
     sys.stdout.flush()
-    
+
     # Write to log file before beginning training
     timestamp = time.strftime("%Y/%m/%d-%H:%M:%S")
     log_entry = "[" + timestamp + "]" + \
@@ -77,32 +78,33 @@ for i in xrange(len(grid)):
         'weight_decay': param_set['weight_decay']
     }
     network.reconfigure_network(**param_dict)
-        
+
     # Get time stamp in the format 20160311-180423
     filename = time.strftime("%Y%m%d-%H%M%S") + ".xml"
     weights_file = BASE_WEIGHTS_PATH + filename
-    
+
     # Tell the network where to save the weights after training
     network.set_weights_file(weights_file)
     # Train on new parameter set
     network.train(epochs=epochs, verbose=False)
     # Get results from testing
     accuracy, info = network.test()
-    
+
     # Update the running record for best Accuracy
     if accuracy > best_accuracy:
         best_accuracy = accuracy
         best_accuracy_idx = i
         best_accuracy_weights = weights_file
-        
+
     log_entry_result = "\n" + info + ". Accuracy: " + str(accuracy) + "\n\n"
     log_file.write(log_entry_result)
     log_file.flush()
-        
+
 network.set_weights_file(best_accuracy_weights)
-done_info = "Autotrainer finished parameter sweep :)"
+done_info = "--------\nAutotrainer finished parameter sweep :)\n"
 done_info += "Best parameter set:\n"
 done_info += str(grid[best_accuracy_idx])
+done_info += "\nWeights file: " + str(best_accuracy_weights)
 done_info += ")\n\nConfusion matrix for this param set:"
 done_info += "\n" + str(network.test(confusion_matrix=True))
 log_file.write(done_info)

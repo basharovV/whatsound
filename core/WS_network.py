@@ -33,11 +33,13 @@ import essentia
 from __builtin__ import file
 import os
 import sys
+import argparse
 
 
 class NeuralNetwork():
-    
+
     def __init__(self,
+                    weights_file=WS_global_data.weights_path,
                     in_nodes=WS_global_data.N_input,
                     weight_decay=WS_global_data.Weight_decay,
                     hid_nodes=WS_global_data.N_hidden_nodes,
@@ -47,7 +49,7 @@ class NeuralNetwork():
                     classes=WS_global_data.Classes,
                     split=WS_global_data.split_proportion,
                     reset=False):
-        
+
         # INITIALISE NETWORK PARAMS
         self.in_nodes = in_nodes
         self.hid_nodes = hid_nodes
@@ -64,24 +66,25 @@ class NeuralNetwork():
         self.test_set_freqs = None
         self.split = split if WS_global_data.split_enabled else None
         self.extractor = Extractor()
-        self.weights_file = WS_global_data.weights_path
-        
+        self.weights_file = weights_file
+
         # Outclass determines the activation function at the output layer
         # This can be
         #- Softmax function - supposedly better for classicication
-        #- Sigmoid function - 
-        
-        
-        if os.path.exists(WS_global_data.weights_path) is False or reset:
+        #- Sigmoid function -
+
+
+        if os.path.exists(self.weights_file) is False or reset:
             self.ann = buildNetwork(self.in_nodes, self.hid_nodes, self.out_nodes, bias=True, \
                 recurrent=False, outclass=SigmoidLayer)
         else:
-            self.ann = NetworkReader.readFrom(WS_global_data.weights_path)
+            print "loading weights file " + self.weights_file
+            self.ann = NetworkReader.readFrom(self.weights_file)
             self.trained = True
-            
+
     def set_weights_file(self, filepath):
         self.weights_file = filepath
-    
+
     def reconfigure_network(self, **kwargs):
         # print kwargs
         self.weight_decay =  kwargs.pop('weight_decay')
@@ -91,25 +94,25 @@ class NeuralNetwork():
         self.ann.reset()
         self.ann = buildNetwork(self.in_nodes, self.hid_nodes, self.out_nodes, bias=True, \
             recurrent=False, outclass=SigmoidLayer)
-            
+
     def makeNetwork(self):
          self.ann = FeedForwardNetwork()
          inLayer = LinearLayer(self.in_nodes)
          hiddenLayer = SigmoidLayer(self.hid_nodes)
          outLayer = LinearLayer(self.out_nodes)
-         
-    
+
+
     def add_set_from_dir(self, directory, testing=False):
         """
-        Generate a data set for the files in the given directory. 
-        
+        Generate a data set for the files in the given directory.
+
         args:
             directory (String): The path containing the audio files in their
                                 associated directory.
         kwargs:
             testing: Flag to set what the data will be used for, training or
                      testing.
-                
+
         """
         data_set = self.extractor.get_dir_dataset(directory)
         if WS_global_data.split_enabled:
@@ -129,13 +132,13 @@ class NeuralNetwork():
                 self.test_set = data_set
                 self.test_set_freqs = get_set_freqs(self.test_set)
                 # print str(self.test_set_freqs)
-        
+
     def train(self, epochs=50, verbose=True):
         """
         Train the network for a specified number of epochs, or alternatively
         train until the network converges.
         """
-        
+
         # self.train_set._convertToOneOfMany()
         trainer = BackpropTrainer(self.ann, learningrate=self.lrn_rate, \
                 dataset=self.train_set, momentum=self.momentum, \
@@ -151,21 +154,22 @@ class NeuralNetwork():
         if verbose:
             print "\n*****Training finished!*****"
         NetworkWriter.writeToFile(self.ann, self.weights_file)
-        if verbose:            
+        if verbose:
             print "Network successfully saved to " + self.weights_file
-        
+
     def report_error(self, trainer):
         # print self.train_set
         trnresult = percentError(trainer.testOnClassData(), self.train_set['class'])
         tstresult = percentError(trainer.testOnClassData(dataset=self.test_set), self.test_set['class'])
         print "\n------------> epoch: %4d" % trainer.totalepochs, "  + \
             train error: %5.2f%%" % trnresult + "    test error:" + "%5.2f%%" % tstresult
-    
+
     def test(self, confusion_matrix=False):
         tstdata = self.test_set
         sample_count = self.test_set.getLength()
+        print "Test data of size: " + str(sample_count)
         correct_count = 0
-        
+
         # Matrix to indicate the number of correct and incorrect predictions
         hitrate_matrix = np.matrix([[0 for i in range(WS_global_data.N_output)] \
                             for i in range(WS_global_data.N_output)])
@@ -182,16 +186,19 @@ class NeuralNetwork():
             out = activation.argmax()
             if out == target_class:
                 correct_count+=1
-            hitrate_matrix[target_class, out] +=1
-        
-        # print hitrate_matrix
+            hitrate_matrix[target_class, out] = hitrate_matrix[target_class, out] + 1
+
+        print hitrate_matrix
         if confusion_matrix:
+            test_info = "Score : %s / %s" % (correct_count, sample_count)
+            test_accuracy = correct_count / float(sample_count)
+            print test_info, test_accuracy
             return get_confusion_matrix(hitrate_matrix, self.test_set_freqs)
-            
+
         test_info = "Score : %s / %s" % (correct_count, sample_count)
         test_accuracy = correct_count / float(sample_count)
         return (test_accuracy, test_info)
-        
+
     def test_on_file(self, filepath, audio_class=None, verbose=False):
         # print "\n*****Testing on audio files in " + directory + "...\n"
         # Generate the testing data set in 3D list form
@@ -212,17 +219,17 @@ class NeuralNetwork():
                     "\n Target : " + str(self.classes[target_class]) + "  |  Output: " + \
                     str(self.classes[out])
         return self.classes[out]
-    
+
     def test_on_signal(self, data, audio_class=None):
         """
         Test the trained network on a raw audio signal in a numpy array format.
-        
+
         args:
-            data: The numpy array containing the audio frames            
+            data: The numpy array containing the audio frames
         kwargs:
-            audio_class (int): The index for the target class corresponding to 
-                the signal. By default no class is provided, as in most cases 
-                the data will be recorded directly from an input device. 
+            audio_class (int): The index for the target class corresponding to
+                the signal. By default no class is provided, as in most cases
+                the data will be recorded directly from an input device.
         """
         tstdata = self.extractor.get_single_dataset(audio_class=0, as_array=True, signal=data)
         one_sample = ClassificationDataSet(self.in_nodes, nb_classes=self.out_nodes, \
@@ -234,17 +241,17 @@ class NeuralNetwork():
         print "______________________________________________________" + \
                 "\n\nActivation values: " + str(activation) + \
                 "\nOutput: " + str(self.classes[out]) + "\n"
-        
-        
+
+
     def test_on_dir(self, directory, audio_class=None, structured=True, verbose=True):
         """
         Test the trained network on a directory containing audio files.
-        
+
         args:
             directory (string): Relative path of the directory.
         kwargs:
             structured (bool): Flag for specifying if the directory follows the
-                audio class structure i.e contains 4 correctly named 
+                audio class structure i.e contains 4 correctly named
                 sub-directories for each of the audio classes.
         """
         # Generate the testing data set in 3D list form
@@ -267,7 +274,7 @@ class NeuralNetwork():
             out = activation.argmax()
             if audio_class:
                 if out == target_class:
-                    correct_count+=1        
+                    correct_count+=1
             if verbose:
                 print "______________________________________________________" + \
                         "\n\n File: " + tstdata[0][i] + \
@@ -278,7 +285,7 @@ class NeuralNetwork():
             print "Score : %s / %s" % (correct_count, sample_count)
         else:
             print "Processed files: %s" % sample_count
-            
+
     def print_info(self):
         print "Audio classes: MUSIC, VOICE, AMBIENT, SILENCE"
         print ("                      PARAMETERS\n"
@@ -290,7 +297,7 @@ class NeuralNetwork():
              + "----> Weight Decay: " + str(self.weight_decay) + "\n"
              + "__________________________________________________________"
                )
-    
+
     def exportTrainingData(self):
         export_file = open("traindata.txt", "w+")
         for i in range(self.train_set.getLength()):
@@ -309,8 +316,26 @@ if __name__ == "__main__":
         +". . . . . . . . . . . . . . . . . . . . . . . . . . . . . .\n"
         )
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-w", "--weights", help="The path of the weights file")
+    parser.add_argument("-d", "--dataset", help="The path of the features dataset")
+    parser.add_argument("-s", "--split", help="The proportion to split the dataset")
+    args = parser.parse_args()
+
+    weights_file = args.weights
+    dataset_path = args.dataset
+    split_proportion = float(args.split)
+
     # Initialise network
-    network = NeuralNetwork()
+    network = NeuralNetwork(weights_file=weights_file, split=split_proportion)
+    test_params = {
+                'hid_nodes': 8,
+                'lrn_rate': 0.01,
+                'weight_decay': 1e-05,
+                'momentum': 0.8
+                }
+
+    # network.reconfigure_network(**test_params)
     network.print_info()
     train = True
     if network.trained:
@@ -332,7 +357,7 @@ if __name__ == "__main__":
         print "Neural network reset. Starting..."
     # # Add training data
     print "\n *Extracting features..."
-    
+
     # If split is enabled, only add one data set, which will be split into two.
     if network.split:
         network.add_set_from_dir(WS_global_data.data_path)
@@ -343,10 +368,13 @@ if __name__ == "__main__":
 
     # print "PRINTING TRAINING DATA to FILE"
     # network.exportTrainingData()
-    
+
     if train:
         # Start training
         network.train()
 
     # Test on the testing directory
-    network.test_on_dir(WS_global_data.test_path)
+    if split_proportion != None:
+        print str(network.test(confusion_matrix=True))
+    else:
+        network.test_on_dir(WS_global_data.test_path)
