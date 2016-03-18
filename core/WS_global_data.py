@@ -20,17 +20,17 @@ package_xml_prefix = "whatsound/core/xml/" if autotrainer_enabled else "xml/"
 
 N_output = 4
 N_input = 28
-N_hidden_nodes = 14
-Learning_rate = 0.05
-Momentum = 0.2
-Weight_decay = 0.0001
+N_hidden_nodes = 8
+Learning_rate = 0.01
+Momentum = 0.8
+Weight_decay = 0.00001
 
 """
 Path where the network weights are stored.
 This path does not apply to the autotrainer, which generates new
 weights files for every run.
 """
-weights_file = "wsnetwork.xml"
+weights_file = "wsweights_test1.xml"
 weights_path = package_xml_prefix + weights_file
 
 """

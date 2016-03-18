@@ -327,7 +327,10 @@ if __name__ == "__main__":
     split_proportion = float(args.split)
 
     # Initialise network
-    network = NeuralNetwork(weights_file=weights_file, split=split_proportion)
+    if weights_file != None:
+        network = NeuralNetwork(weights_file=weights_file, split=split_proportion)
+    else:
+        network = NeuralNetwork(split=split_proportion)
     test_params = {
                 'hid_nodes': 8,
                 'lrn_rate': 0.01,
@@ -371,7 +374,7 @@ if __name__ == "__main__":
 
     if train:
         # Start training
-        network.train()
+        network.train(epochs=3000)
 
     # Test on the testing directory
     if split_proportion != None:

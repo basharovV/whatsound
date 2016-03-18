@@ -52,17 +52,17 @@ class Extractor():
                 WS_global_data.N_input,
                 nb_classes=WS_global_data.N_output,
                 class_labels=WS_global_data.Classes)
-                
+
         # Not directory - get features for single file
         self.addClassFeatures(audio_class=audio_class,
                 as_array=as_array, to_xml=False, **kwargs)    # Don't add to XML
-        
+
         self.features_dataset._convertToOneOfMany()
         if as_array:
             # print "Array: " + str(self.features_array)
             return self.features_array
-        return self.features_dataset  
-          
+        return self.features_dataset
+
     def get_dir_dataset(self, directory, audio_class=None, as_array=False, structured=True):
         """
         Generate a ClassificationDataSet for the provided feature set. The directory
@@ -84,19 +84,19 @@ class Extractor():
                 WS_global_data.N_input,
                 nb_classes=WS_global_data.N_output,
                 class_labels=WS_global_data.Classes)
-        
+
         # Get subfolders / files for provided directory
         subpaths = os.listdir(directory)
-        
+
         # Check if the specified directory is supposed to be structured
         # with accordance to whatsound classifiers
-        # link 
-        if len(subpaths) is not WS_global_data.N_output and structured:            
+        # link
+        if len(subpaths) is not WS_global_data.N_output and structured:
             print subpaths
             print "ERROR: Sub-folder count does not \
                 match number of audio classes"
             sys.exit()
-            
+
         for i in range(len(subpaths)):
             if WS_global_data.debug_files_only and structured:
                 print "Entered class dir : " + subpaths[i]
@@ -111,17 +111,17 @@ class Extractor():
                 dir_kwarg = {ARG_FILE : subpath}
                 self.addClassFeatures(audio_class=audio_class,
                         as_array=as_array, to_xml=True, **dir_kwarg)
-                
+
         print "Generated features_dataset with size " + str(len(self.features_dataset))
-        
+
         # Save XML
         features_file=open(self.filename, 'w+')
         features_file.seek(0)
         features_file.write(etree.tostring(self.tree_root, pretty_print=True))
         features_file.truncate()
-        
+
         if as_array:
-            return self.features_array        
+            return self.features_array
 
         self.features_dataset._convertToOneOfMany()
         return self.features_dataset
@@ -136,7 +136,7 @@ class Extractor():
             path: The directory to process
             features_dataset: The ClassificationDataSet
         """
-        
+
         if len(kwargs) < 1 or \
             (kwargs.has_key(ARG_FILE) and kwargs.has_key(ARG_SIGNAL)):
             # Raise invalid argument exception
@@ -195,37 +195,37 @@ class Extractor():
             result: The feature vector.
         """
         # Check is features for this audio file already exist in XML
-        features = {}  
-        
-        # Result dictionary - contains the audio features 
+        features = {}
+
+        # Result dictionary - contains the audio features
         # key: feature name
-        # value : numpy array containing the feature value(s)      
+        # value : numpy array containing the feature value(s)
         result = None
         need_features = True
         missing_features = dict(zip(WS_global_data.feature_list, \
             (True for i in range(len(WS_global_data.feature_list)))))
-            
+
         if len(kwargs) < 1 or \
             (kwargs.has_key(ARG_FILE) and kwargs.has_key(ARG_SIGNAL)):
             # Raise invalid argument exception
             print kwargs
             print "Invalid argument exception in extractFeatures"
             sys.exit(1)
-        
+
         # --------------------- GET FEATURES FROM SIGNAL -------------------
         if ARG_SIGNAL in kwargs:
             # If any features are missing, get them and (otionally save to xml)
             if need_features:
                 if WS_global_data.debug:
                     print "Need additional features:"
-                # Extract missing features, save to dictionary            
+                # Extract missing features, save to dictionary
                 for feat, is_needed in missing_features.iteritems():
                     if is_needed:
                         if WS_global_data.debug:
                             print "Missing feature: " + feat + ". Extracting..."
                         features[feat] = extract_feature(feat, **kwargs)
                 return self.feat_array_from_dict(features)
-        
+
         # ---------------------- GET FEATURES FROM FILE ----------------------
         if ARG_FILE in kwargs:
             filepath = kwargs.get(ARG_FILE)
@@ -256,9 +256,9 @@ class Extractor():
                         for feature in WS_global_data.feature_list:
                             if feature not in xml_features:
                                 missing_features[feature] = True
-                        
+
                         # print missing_features.values()
-                        
+
                         # If all features are already present...simply get them!
                         if not all(val == True for val in missing_features.values()):
                             print "WHY"
@@ -266,32 +266,32 @@ class Extractor():
                             result = self.get_xml_feature_set(feature_set)
                         # Found the match, break out of the loop
                         break
-                        
+
             # If any features are missing, get them and (otionally save to xml)
             if need_features:
                 if WS_global_data.debug:
                     print "Need additional features:"
-                # Extract missing features, save to dictionary            
+                # Extract missing features, save to dictionary
                 for feat, is_needed in missing_features.iteritems():
                     if is_needed:
                         if WS_global_data.debug:
                             print "Missing feature: " + feat + ". Extracting..."
                         features[feat] = extract_feature(feat, **kwargs)
                 # print features
-                
+
                 # Write feature set to XML tree
                 if to_xml:
                     self.feat_dict_to_xml(features, **kwargs)
-            
+
         return self.feat_array_from_dict(features)
 
     def feat_dict_to_xml(self, features, **kwargs):
         # Overwrite tree root with new XML tree
         # self.tree_root = etree.Element('feature-list')
-        feature_set = etree.SubElement(self.tree_root, 'feature-set', 
+        feature_set = etree.SubElement(self.tree_root, 'feature-set',
                 file=kwargs.pop(ARG_FILE))
-        
-        for name, result in features.iteritems():            
+
+        for name, result in features.iteritems():
             if WS_global_data.debug_extra:
                 print name,result
             feature_name = name
@@ -305,14 +305,14 @@ class Extractor():
                 tree_val = etree.SubElement(tree_feature, 'value', \
                     index = str(v))
                 tree_val.text = str(result[v])
-                
+
         if __name__ == "__main__":
             features_file=open(self.filename, 'w+')
             features_file.write(etree.tostring(self.tree_root, pretty_print=True))
-            
+
     def feat_array_from_dict(self, features):
         # Construct result array to be inserted into the dataset
-        
+
         if (WS_global_data.debug_extra):
             print features
         result = np.concatenate((
@@ -324,7 +324,7 @@ class Extractor():
                     features.get(WS_global_data.feature_list[5])),
                     axis=0)
         return result
-        
+
     def get_xml_feature_set(self, feature_set):
         result = None
         # If not empty - generate array
@@ -346,7 +346,7 @@ class Extractor():
                     feature_count+=1
         print "RESULT: " + str(result)
         return result.astype(float)
-    
+
     def get_xml_feature_values(self, feature):
         values = None
         v = 0
@@ -394,19 +394,19 @@ def extract_feature(function_name, **kwargs):
     Finds and calls the appropriate function matching the name of the feature
     requested.
     The function must be a global module function, not a class method.
-    """    
+    """
     if len(kwargs) < 1 or \
         (kwargs.has_key(ARG_FILE) and kwargs.has_key(ARG_SIGNAL)):
         # Raise invalid argument exception
         print "Invalid argument exception"
         sys.exit(1)
-                    
+
     try:
         func = globals()[function_name]
     except AttributeError:
         print 'Function ' + function_name + ' not found :('
     else:
-        if WS_global_data.debug:            
+        if WS_global_data.debug:
             print "Extracting " + function_name
             # if (ARG_FILE) in kwargs:
             # if ()
@@ -416,30 +416,18 @@ def extract_feature(function_name, **kwargs):
 
 # ------------------------- FEATURE EXTRACTORS -------------------------------
 def mfcc(**kwargs):
-    # Introducing the Pool: a good-for-all container
-    #
-    # A Pool can contain any type of values (easy in Python, not as much in C++ :-) )
-    # They need to be given a name, which represent the full path to these values;
-    # dot '.' characters are used as separators. You can think of it as a directory
-    # tree, or as namespace(s) + local name.
-    #
-    # Examples of valid names are: bpm, lowlevel.mfcc, highlevel.genre.rock.probability, etc...
-
-    # So let's redo the previous using a Pool
-    
-        
     if len(kwargs) < 1 or \
         (kwargs.has_key(ARG_FILE) and kwargs.has_key(ARG_SIGNAL)):
         # Raise invalid argument exception
         print "Invalid argument exception"
         sys.exit(1)
-    
-    audio = None        
+
+    audio = None
     w = essentia.standard.Windowing(type = 'hann')
     spectrum = essentia.standard.Spectrum()
     mfcc = essentia.standard.MFCC()
     pool = essentia.Pool()
-    
+
     if ARG_FILE in kwargs:
         filepath = kwargs.pop(ARG_FILE)
         loader = essentia.standard.MonoLoader(filename = filepath)
@@ -450,14 +438,14 @@ def mfcc(**kwargs):
         audio = WS_utils.normalize(essentia.array(kwargs.pop(ARG_SIGNAL)))
         if WS_global_data.debug_extra:
             print "Signal audio : " + str(audio)
-    else: 
+    else:
         # Raise exception
-        sys.exit(1)      
+        sys.exit(1)
     for frame in FrameGenerator(audio, frameSize = 2048, hopSize = 512):
         mfcc_bands, mfcc_coeffs = mfcc(spectrum(w(frame)))
         pool.add('lowlevel.mfcc', mfcc_coeffs)
-        pool.add('lowlevel.mfcc_bands', mfcc_bands)  
-     
+        pool.add('lowlevel.mfcc_bands', mfcc_bands)
+
 
     # imshow(pool['lowlevel.mfcc'].T[1:,:], aspect = 'auto')
     # figure()
@@ -501,26 +489,26 @@ def mfcc(**kwargs):
     return values_norm
 
 def zcr(**kwargs):
-                    
+
     if len(kwargs) < 1 or \
         (kwargs.has_key(ARG_FILE) and kwargs.has_key(ARG_SIGNAL)):
         # Raise invalid argument exception
         print "Invalid argument exception"
         sys.exit(1)
-    
+
     audio = None
     zerocrossingrate = None     # result
     zcr = essentia.standard.ZeroCrossingRate()
     windowing = essentia.standard.Windowing(type="hann")
     spectrum = essentia.standard.Spectrum()
-                        
+
     if ARG_FILE in kwargs:
         audio_file = kwargs.pop(ARG_FILE)
         loader = essentia.standard.MonoLoader(filename=audio_file)
-        audio = loader()        
-    elif ARG_SIGNAL in kwargs:       
+        audio = loader()
+    elif ARG_SIGNAL in kwargs:
         audio = essentia.array(kwargs.pop(ARG_SIGNAL))
-        
+
     zerocrossingrate = zcr(audio)
     pool = essentia.Pool()
     aggrPool = essentia.standard.PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
@@ -528,7 +516,7 @@ def zcr(**kwargs):
     #Write the mean acr
     meanZCRPool = essentia.Pool()
     meanZCRPool.add('zerocrossingrate', zerocrossingrate)
-    
+
     avg_zcr = meanZCRPool['zerocrossingrate'][0]
     # print "XCRRR: " + str(np.array(avg_zcr))
     return np.array([avg_zcr])
@@ -537,42 +525,42 @@ def key_strength(**kwargs):
     # Two ways of extracting the key:
     # 1. Using Key() - requires frequencies and magnitudes of the spectral peaks
     # 2. Using KeyExtractor() - only requires raw signal as input
-    # This function uses the 2nd approach. 
-                    
+    # This function uses the 2nd approach.
+
     if len(kwargs) < 1 or \
         (kwargs.has_key(ARG_FILE) and kwargs.has_key(ARG_SIGNAL)):
         # Raise invalid argument exception
         print "Invalid argument exception"
         sys.exit(1)
-    
+
     key_alg = essentia.standard.KeyExtractor()
     key = None
-    key_str = None             
+    key_str = None
     audio = None
-    
+
     if ARG_FILE in kwargs:
         filepath = kwargs.pop(ARG_FILE)
         loader = essentia.standard.MonoLoader(filename=filepath)
         audio = loader()
         key = key_alg(audio)
-    elif ARG_SIGNAL in kwargs:        
+    elif ARG_SIGNAL in kwargs:
         audio = essentia.array(kwargs.pop(ARG_SIGNAL))
-        
+
     key = key_alg(audio)
-    
+
     if (WS_global_data.debug_extra):
         print "key : " + str(key)
-    
+
     pool = essentia.Pool()
     aggrPool = essentia.standard.PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
 
     #Write the mean acr
     # meanZCRPool = essentia.Pool()
     # meanZCRPool.add('key_strength', key.strength)
-    # 
+    #
     # avg_zcr = meanZCRPool['key'][0]
     # print "XCRRR: " + str(np.array(key.strength))
-    
+
     # # initialize algorithms we will use
     # loader = essentia.standard.MonoLoader(filename=filename)
     # framecutter = FrameCutter()
@@ -585,10 +573,10 @@ def key_strength(**kwargs):
     #                               maxPeaks=10000)
     # hpcp = HPCP()
     # key = Key()
-    # 
+    #
     # # use pool to store data
     # pool = essentia.Pool()
-    # 
+    #
     # # connect algorithms together
     # loader.audio >> framecutter.signal
     # framecutter.frame >> windowing.frame >> spectrum.frame
@@ -613,7 +601,7 @@ def key_strength(**kwargs):
     # YamlOutput(filename=outfile, format="json")(pool)
 
 def spectral_flux(**kwargs):
-                
+
     if len(kwargs) < 1 or \
         (kwargs.has_key(ARG_FILE) and kwargs.has_key(ARG_SIGNAL)):
         # Raise invalid argument exception
@@ -624,17 +612,17 @@ def spectral_flux(**kwargs):
     windowing = essentia.standard.Windowing(type="blackmanharris62")
     spectrum = essentia.standard.Spectrum()
 
-    # Init pool container 
+    # Init pool container
     pool = essentia.Pool()
     audio = None
-    
-    if ARG_FILE in kwargs:        
+
+    if ARG_FILE in kwargs:
         filepath = kwargs.pop(ARG_FILE)
         loader = essentia.standard.MonoLoader(filename=filepath)
-        audio = loader()  
+        audio = loader()
     elif ARG_SIGNAL in kwargs:
         audio = essentia.array(kwargs.pop(ARG_SIGNAL))
-            
+
     for frame in FrameGenerator(audio, frameSize = 2048, hopSize = 512):
         flux_val = flux(spectrum(windowing(frame)))
         pool.add('lowlevel.flux', flux_val)
@@ -650,38 +638,38 @@ def spectral_flux(**kwargs):
     return np.array([avg_flux])
 
 def pitch_strength(**kwargs):
-                
+
     if len(kwargs) < 1 or \
         (kwargs.has_key(ARG_FILE) and kwargs.has_key(ARG_SIGNAL)):
         # Raise invalid argument exception
         print "Invalid argument exception"
         sys.exit(1)
-    
+
     pitch_sal = essentia.standard.PitchSalience()
     windowing = essentia.standard.Windowing(type="blackmanharris62")
     spectrum = essentia.standard.Spectrum()
-    
-    # Init pool container 
+
+    # Init pool container
     pool = essentia.Pool()
     audio = None
-    
-    if ARG_FILE in kwargs:        
+
+    if ARG_FILE in kwargs:
         filepath = kwargs.pop(ARG_FILE)
         loader = essentia.standard.MonoLoader(filename=filepath)
-        audio = loader()    
+        audio = loader()
     elif ARG_SIGNAL in kwargs:
-        audio = essentia.array(kwargs.pop(ARG_SIGNAL))   
+        audio = essentia.array(kwargs.pop(ARG_SIGNAL))
         if WS_global_data.debug_extra:
-            print str(audio)     
-    
+            print str(audio)
+
     for frame in FrameGenerator(audio, frameSize = WS_global_data.frame_size, hopSize = WS_global_data.hop_size):
         # print "Frame: " + str(frame)
-        pitch_sal_val = pitch_sal(spectrum(windowing(frame)))     
-        # print "pitch val: " + str(pitch_sal_val)       
+        pitch_sal_val = pitch_sal(spectrum(windowing(frame)))
+        # print "pitch val: " + str(pitch_sal_val)
         pool.add('lowlevel.pitch_strength', pitch_sal_val)
 
     aggrPool = essentia.standard.PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
-    
+
     #Write the mean mfcc to another pool
     mean_ps_pool = essentia.Pool()
     mean_ps_pool.add('mean_pitch_strength', aggrPool['lowlevel.pitch_strength.mean'])
@@ -689,48 +677,48 @@ def pitch_strength(**kwargs):
     # print meanFluxPool['mean_flux']
 
     avg_pitch_strength = mean_ps_pool['mean_pitch_strength'][0]
-    
+
     if WS_global_data.debug_extra:
         print "Pitch strength: " + str(avg_pitch_strength)
     return np.array([avg_pitch_strength])
 
 def lpc(**kwargs):
-                
+
     if len(kwargs) < 1 or \
         (kwargs.has_key(ARG_FILE) and kwargs.has_key(ARG_SIGNAL)):
         # Raise invalid argument exception
         print "Invalid argument exception"
         sys.exit(1)
-    
+
     lpc = essentia.standard.LPC()
     windowing = essentia.standard.Windowing(type="blackmanharris62")
     spectrum = essentia.standard.Spectrum()
 
-    # Init pool container 
+    # Init pool container
     pool = essentia.Pool()
     audio = None
-    
-    if ARG_FILE in kwargs:        
+
+    if ARG_FILE in kwargs:
         filepath = kwargs.pop(ARG_FILE)
         loader = essentia.standard.MonoLoader(filename=filepath)
-        audio = loader()       
+        audio = loader()
     elif ARG_SIGNAL in kwargs:
         audio = essentia.array(kwargs.pop(ARG_SIGNAL))
-    
+
     for frame in FrameGenerator(audio, frameSize = 2048, hopSize = 512):
         lpc_coeff, refl = lpc(spectrum(windowing(frame)))
         # print lpc_coeff, refl
         pool.add('lowlevel.lpc', lpc_coeff)
         # pool.add('lowlevel.lpc_reflection', refl)
-    
+
     aggrPool = essentia.standard.PoolAggregator(defaultStats = [ 'mean', 'var' ])(pool)
-    
+
     #Write the mean mfcc to another pool
     mean_lpc_pool = essentia.Pool()
     mean_lpc_pool.add('mean_lpc', aggrPool['lowlevel.lpc.mean'])
-    
+
     # print meanFluxPool['mean_flux']
-    
+
     avg_lpc = mean_lpc_pool['mean_lpc'][0]
     return np.array(avg_lpc)
 
