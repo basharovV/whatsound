@@ -112,7 +112,7 @@ class Extractor():
                 self.addClassFeatures(audio_class=audio_class,
                         as_array=as_array, to_xml=True, **dir_kwarg)
 
-        print "Generated features_dataset with size " + str(len(self.features_dataset))
+        # print "Generated features_dataset with size " + str(len(self.features_dataset))
 
         # Save XML
         features_file=open(self.filename, 'w+')

@@ -16,7 +16,7 @@ debug_files_only = True
 # to the parent directory of whatsound/
 autotrainer_enabled = False
 standalone_prefix = "../../" if not autotrainer_enabled else ''
-package_xml_prefix = "whatsound/core/xml/" if autotrainer_enabled else "xml/"
+package_xml_prefix = "whatsound/core/xml/" if autotrainer_enabled else "core/xml/"
 
 N_output = 4
 N_input = 28
@@ -94,7 +94,7 @@ sample_rate = 44100
 frame_size = 2048
 hop_size = 512
 sample_format = pyaudio.paFloat32
-record_length = 2.0
+record_length = 0.5
 
 # ---------------------------  REAL TIME SETTINGS ----------------------------
 
