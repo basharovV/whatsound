@@ -324,7 +324,7 @@ if __name__ == "__main__":
     
     weights_file = args.weights
     dataset_path = args.dataset
-    split_proportion = float(args.split)
+    split_proportion = float(args.split) if args.split else None
     
     # Initialise network
     if weights_file != None:

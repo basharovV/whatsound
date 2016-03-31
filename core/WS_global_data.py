@@ -16,7 +16,7 @@ debug_files_only = True
 # to the parent directory of whatsound/
 autotrainer_enabled = False
 standalone_prefix = "../../" if not autotrainer_enabled else ''
-package_xml_prefix = "whatsound/core/xml/" if autotrainer_enabled else "core/xml/"
+package_xml_prefix = "whatsound/core/xml/" if autotrainer_enabled else "xml/"
 
 N_output = 4
 N_input = 28
