@@ -122,21 +122,24 @@ if __name__ == "__main__":
     
     print "\n\n. . . . . . . . . . . WhatSound classifier . . . . . . . . . . . \n"
     if args.file:
-        print "Classifier mode : file"     
+        print "Classifier mode: [file]"    
         filepath = args.file   
+        print "Filename: " + filepath
         fc = Classifier()
-        if args.__contains__("target"):
+        if args.target:
             fc.network.test_on_file(filepath, 
                         audio_class = args.target,
                         verbose=False)
-        else: 
-            fc.network.test_on_file(filepath, verbose=False)
+        else:
+            audio_class = fc.network.test_on_file(filepath, verbose=False)
+            print "--------------------" + \
+                "\nAudio class: " + audio_class
             
     if args.dir:
         print "Classifier mode : directory"
         directory = args.dir
         fc = Classifier()
-        if args.__contains__("target"):
+        if args.target:
             fc.network.test_on_dir(directory,
                         audio_class = args.target, structured=False,
                         verbose = False)

@@ -27,9 +27,9 @@ param_grid = {
 
 alt_param_grid = {
     'hid_nodes': [4, 8, 12, 18],
-    'lrn_rate': [0.0001, 0.01, 0.1, 0.2],
+    'lrn_rate': [0.0001, 0.01, 0.05, 0.2],
     'momentum': [0.15, 0.2, 0.4, 0.8],
-    'weight_decay': [0.00001, 0.01, 0.1, 0.4]
+    'weight_decay': [0.00001, 0.0001, 0.001, 0.05]
 }
 
 grid = ParameterGrid(alt_param_grid)

@@ -165,7 +165,7 @@ class NeuralNetwork():
     def test(self, confusion_matrix=False):
         tstdata = self.test_set
         sample_count = self.test_set.getLength()
-        print "Test data of size: " + str(sample_count)
+        # print "Test data of size: " + str(sample_count)
         correct_count = 0
         
         # Matrix to indicate the number of correct and incorrect predictions
@@ -186,7 +186,7 @@ class NeuralNetwork():
                 correct_count+=1
             hitrate_matrix[target_class, out] = hitrate_matrix[target_class, out] + 1
         
-        print hitrate_matrix
+        # print hitrate_matrix
         if confusion_matrix:
             test_info = "Score : %s / %s" % (correct_count, sample_count)
             test_accuracy = correct_count / float(sample_count)
