@@ -30,7 +30,7 @@ Path where the network weights are stored.
 This path does not apply to the autotrainer, which generates new
 weights files for every run.
 """
-weights_file = "wsweights_test1.xml"
+weights_file = "acc79_20160402-110514.xml"
 weights_path = package_xml_prefix + weights_file
 
 """
@@ -57,7 +57,7 @@ data set is provided, which is split into a training and testing set.
 """
 split_enabled = True
 data_path = train_path
-split_proportion = 0.75
+split_proportion = 0.6
 
 """
 The audio classes that WhatSound supports, and their associated indexes (used
