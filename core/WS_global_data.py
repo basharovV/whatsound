@@ -8,7 +8,8 @@ import pyaudio
 
 debug = False
 debug_extra = False
-debug_files_only = True
+debug_files_only = False
+debug_dirs_only = True
 
 # ------------------------ Neural Network SETTINGS ----------------------------
 
@@ -19,7 +20,7 @@ standalone_prefix = "../../" if not autotrainer_enabled else ''
 package_xml_prefix = "whatsound/core/xml/" if autotrainer_enabled else "xml/"
 
 N_output = 4
-N_input = 28
+N_input = 27    # Corresponds to the number of feature values (see feature list)
 N_hidden_nodes = 8
 Learning_rate = 0.01
 Momentum = 0.8
@@ -70,23 +71,23 @@ Classes = ['music', 'voice', 'ambient', 'silence']
 Class_indexes = {'music': 0, 'voice': 1, 'ambient': 2, 'silence': 3}
 
 # ---------------------- FEATURE EXTRACTION SETTINGS -------------------------
+
+# 22/04/2016 - removed Pitch strength to test with less features
 feature_list = ['mfcc',
                 'key_strength',
                 'spectral_flux',
                 'zcr',
-                'pitch_strength',
                 'lpc']
 
 feature_sizes = {'mfcc': 13, \
                 'key_strength': 1,\
                 'spectral_flux': 1,\
                 'zcr': 1,\
-                'pitch_strength': 1,\
                 'lpc' : 11}
 
 features_saved = False
 
-features_xml_file = "wsfeatures.xml"
+features_xml_file = "wsfeatures2.xml"
 features_xml_path = package_xml_prefix + features_xml_file
 
 # ----------------------------- AUDIO SETTINGS ------------------------------

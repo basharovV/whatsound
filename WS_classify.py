@@ -12,7 +12,8 @@ from core.WS_network import *
 class Classifier:
     
     def __init__(self):
-        self.network = NeuralNetwork()
+        weights_path = "core/" + WS_global_data.weights_path
+        self.network = NeuralNetwork(weights_file=weights_path)
     
     def classify_file(filepath):
         self.network.test_on_file(filepath, 2)

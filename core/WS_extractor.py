@@ -156,7 +156,7 @@ class Extractor():
                     path_kwarg = {ARG_FILE : audio_full_path}
                     self.addClassFeatures(audio_class=audio_class, \
                         as_array=as_array, **path_kwarg)
-                    if WS_global_data.debug_extra:
+                    if WS_global_data.debug_dirs_only:
                         print "Entered : " + audio_full_path
             else:
                 features = self.extractFeatures(to_xml=to_xml, **kwargs)
@@ -315,14 +315,16 @@ class Extractor():
 
         if (WS_global_data.debug_extra):
             print features
-        result = np.concatenate((
-                    features.get(WS_global_data.feature_list[0]), \
-                    features.get(WS_global_data.feature_list[1]), \
-                    features.get(WS_global_data.feature_list[2]), \
-                    features.get(WS_global_data.feature_list[3]), \
-                    features.get(WS_global_data.feature_list[4]), \
-                    features.get(WS_global_data.feature_list[5])),
-                    axis=0)
+        result = np.concatenate(
+            list((features.get(feat) for feat in WS_global_data.feature_list)), axis=0)
+            
+            # features.get(WS_global_data.feature_list[0]), \
+            # features.get(WS_global_data.feature_list[1]), \
+            # features.get(WS_global_data.feature_list[2]), \
+            # features.get(WS_global_data.feature_list[3]), \
+            # features.get(WS_global_data.feature_list[4]), \
+            # features.get(WS_global_data.feature_list[5])),
+            # axis=0)
         return result
 
     def get_xml_feature_set(self, feature_set):
